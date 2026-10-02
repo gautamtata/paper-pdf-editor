@@ -1,3 +1,5 @@
+import { HomeClient } from "@/components/home/HomeClient";
+
 export default function Home() {
-  return <main className="flex flex-1 items-center justify-center">Paper</main>;
+  return <HomeClient />;
 }

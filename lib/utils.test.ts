@@ -1,10 +1,19 @@
 // @vitest-environment jsdom
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { downloadBytes } from "./utils";
+import { downloadBytes, isPdfFile } from "./utils";
 
 afterEach(() => {
   vi.restoreAllMocks();
   vi.useRealTimers();
+});
+
+describe("isPdfFile", () => {
+  it("accepts the PDF media type and falls back to the extension", () => {
+    expect(isPdfFile(new File([], "a.pdf", { type: "application/pdf" }))).toBe(true);
+    expect(isPdfFile(new File([], "SCAN.PDF", { type: "" }))).toBe(true);
+    expect(isPdfFile(new File([], "notes.txt", { type: "text/plain" }))).toBe(false);
+    expect(isPdfFile(new File([], "pdf", { type: "image/png" }))).toBe(false);
+  });
 });
 
 describe("downloadBytes", () => {

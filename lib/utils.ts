@@ -16,6 +16,10 @@ export function formatBytes(n: number): string {
   return `${value.toFixed(1)} ${BYTE_UNITS[unit]}`;
 }
 
+/** Browsers leave `type` empty for some picked files, so the extension is a fallback. */
+export const isPdfFile = (file: File): boolean =>
+  file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+
 export function downloadBytes(bytes: Uint8Array, filename: string) {
   // `Uint8Array` is generic over ArrayBufferLike, which TS will not narrow to
   // BlobPart (it could be SharedArrayBuffer-backed); ours never is.
