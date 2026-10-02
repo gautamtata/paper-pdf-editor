@@ -103,11 +103,6 @@ export function SignaturePad({ color, onInkChange, ref }: SignaturePadProps) {
     [],
   );
 
-  const setInk = (value: boolean): void => {
-    setHasInk(value);
-    onInkChange?.(value);
-  };
-
   const clear = useCallback(() => {
     strokes.current = [];
     drawing.current = null;
@@ -184,7 +179,8 @@ export function SignaturePad({ color, onInkChange, ref }: SignaturePadProps) {
           drawing.current = null;
           if (stroke === null) return;
           strokes.current.push(stroke);
-          setInk(true);
+          setHasInk(true);
+          onInkChange?.(true);
           schedule();
         }}
         onPointerCancel={() => {

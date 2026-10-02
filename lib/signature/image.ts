@@ -5,7 +5,7 @@ const PAPER_LUMA = 0.82;
 /** How quickly alpha ramps up below the cutoff; above 1 it keeps mid-greys solid. */
 const EDGE_GAIN = 1.6;
 /** Breathing room kept around trimmed content, in output pixels. */
-export const TRIM_PAD = 8;
+const TRIM_PAD = 8;
 /** Phone photos arrive at camera resolution; a signature needs nothing like it. */
 const MAX_SIDE = 1600;
 
