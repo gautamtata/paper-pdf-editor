@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type RefObject } from "react";
-import type { PageId, VirtualPage } from "@/lib/pdf/types";
+import type { PageId } from "@/lib/pdf/types";
 import { editorStore } from "@/lib/store/editor";
 
 /** One viewport of lead-in, so a page is painted before it scrolls into view. */
@@ -20,13 +20,13 @@ const pageIdOf = (target: Element): PageId | null => target.getAttribute("data-p
  */
 export function useVisiblePage(
   containerRef: RefObject<HTMLElement | null>,
-  pages: VirtualPage[],
+  order: PageId[],
 ): Set<PageId> {
   const [near, setNear] = useState<Set<PageId>>(new Set());
 
   useEffect(() => {
     const root = containerRef.current;
-    if (root === null || pages.length === 0) return;
+    if (root === null || order.length === 0) return;
 
     const nearIds = new Set<PageId>();
     const renderObserver = new IntersectionObserver(
@@ -64,8 +64,8 @@ export function useVisiblePage(
       { root, threshold: AREA_STEPS },
     );
 
-    for (const page of pages) {
-      const el = root.querySelector(`[data-page-id="${page.id}"]`);
+    for (const id of order) {
+      const el = root.querySelector(`[data-page-id="${id}"]`);
       if (el === null) continue;
       renderObserver.observe(el);
       activeObserver.observe(el);
@@ -74,7 +74,7 @@ export function useVisiblePage(
       renderObserver.disconnect();
       activeObserver.disconnect();
     };
-  }, [containerRef, pages]);
+  }, [containerRef, order]);
 
   return near;
 }

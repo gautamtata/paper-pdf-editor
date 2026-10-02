@@ -1,6 +1,6 @@
 import type { Matrix } from "@/lib/annotations/geometry";
 import { addRotation, Rotation, type PageSize, type SourceDoc } from "@/lib/pdf/types";
-import { getSourceDocument } from "@/lib/render/pdfjs";
+import { getSourceDocument, releaseSource } from "@/lib/render/pdfjs";
 
 export interface RenderRequest {
   source: SourceDoc;
@@ -37,7 +37,7 @@ const cacheKey = ({ source, pageIndex, rotation, scale }: RenderRequest): string
 
 const abortError = (): DOMException => new DOMException("Aborted", "AbortError");
 
-/** Mirrors pdf.js `PageViewport` for a MediaBox of `[0 0 w h]`, no userUnit, no offset. */
+/** Mirrors pdf.js `PageViewport` for a display box of `[0 0 w h]`, no userUnit, no offset. */
 export function getViewportTransform(
   size: PageSize,
   intrinsic: Rotation,
@@ -138,6 +138,12 @@ export function clearRenderCache(sourceId?: string): void {
   const prefix = `${sourceId}:`;
   for (const key of cache.keys()) if (key.startsWith(prefix)) cache.delete(key);
   for (const key of inflight.keys()) if (key.startsWith(prefix)) inflight.delete(key);
+}
+
+/** Drops a source's pdf.js document and every bitmap rendered from it. */
+export function removeSource(sourceId: string): void {
+  releaseSource(sourceId);
+  clearRenderCache(sourceId);
 }
 
 async function drawWithPdfjs(req: RenderRequest, signal: AbortSignal): Promise<Rendered> {

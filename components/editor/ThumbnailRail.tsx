@@ -3,7 +3,8 @@
 import {
   DndContext,
   KeyboardSensor,
-  PointerSensor,
+  MouseSensor,
+  TouchSensor,
   closestCenter,
   useSensor,
   useSensors,
@@ -14,9 +15,10 @@ import {
   rectSortingStrategy,
   sortableKeyboardCoordinates,
 } from "@dnd-kit/sortable";
-import { useMemo, useState } from "react";
-import { scrollToPage } from "@/components/editor/actions";
+import { useCallback, useState } from "react";
+import { pageOrder, scrollToPage } from "@/components/editor/actions";
 import { ThumbnailCard } from "@/components/editor/ThumbnailCard";
+import { usePageOrder } from "@/components/editor/usePageOrder";
 import { useRailDrop } from "@/components/editor/useRailDrop";
 import { computeDropIndex } from "@/lib/pdf/reorder";
 import type { PageId, VirtualPage } from "@/lib/pdf/types";
@@ -25,6 +27,14 @@ import { useWorkspace, workspaceStore } from "@/lib/store/workspace";
 import { cn } from "@/lib/utils";
 
 const NO_PAGES: VirtualPage[] = [];
+
+// Module constants: `useSensor` memoises on its options object, and fresh ones each render would
+// hand every card a new drag context and re-render it.
+/** A few pixels of slop, so a click to select never reads as a drag. */
+const MOUSE_ACTIVATION = { activationConstraint: { distance: 4 } };
+/** A press-and-hold, so a swipe over the cards scrolls the rail instead of dragging a page. */
+const TOUCH_ACTIVATION = { activationConstraint: { delay: 250, tolerance: 5 } };
+const KEYBOARD_OPTIONS = { coordinateGetter: sortableKeyboardCoordinates };
 
 /**
  * Moves focus to the neighbouring card. The row width comes from the cards sharing the first one's
@@ -48,7 +58,7 @@ export function ThumbnailRail({ className }: { className?: string }) {
   const sources = useWorkspace((s) => s.workspace?.sources);
   const selectedPageIds = useEditor((s) => s.selectedPageIds);
   const activePageId = useEditor((s) => s.activePageId);
-  const order = useMemo(() => pages.map((page) => page.id), [pages]);
+  const order = usePageOrder(pages);
   const { dropping, dropHandlers } = useRailDrop(order);
   const [focusedId, setFocusedId] = useState<PageId | null>(null);
   const [dragging, setDragging] = useState(false);
@@ -57,15 +67,15 @@ export function ThumbnailRail({ className }: { className?: string }) {
   const tabStopId = entryId ?? order[0];
 
   const sensors = useSensors(
-    // A few pixels of slop, so a click to select never reads as a drag.
-    useSensor(PointerSensor, { activationConstraint: { distance: 4 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+    useSensor(MouseSensor, MOUSE_ACTIVATION),
+    useSensor(TouchSensor, TOUCH_ACTIVATION),
+    useSensor(KeyboardSensor, KEYBOARD_OPTIONS),
   );
 
-  const select = (id: PageId, mode: SelectMode) => {
-    editorStore.getState().selectPage(id, mode, order);
+  const select = useCallback((id: PageId, mode: SelectMode) => {
+    editorStore.getState().selectPage(id, mode, pageOrder());
     if (mode === "replace") scrollToPage(id);
-  };
+  }, []);
 
   /** A drag of a selected card carries the whole selection; an unselected one carries itself. */
   const onDragEnd = ({ active, over }: DragEndEvent) => {

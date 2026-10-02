@@ -9,12 +9,19 @@ const WORKER_SRC = "/pdf.worker.min.mjs";
 let pdfjsPromise: Promise<Pdfjs> | null = null;
 const documents = new Map<string, Promise<PDFDocumentLoadingTask>>();
 
+/** Rejections are never kept: a failed import or parse is retried on the next request. */
 export function getPdfjs(): Promise<Pdfjs> {
-  pdfjsPromise ??= import("pdfjs-dist").then((pdfjs) => {
-    // In Node pdf.js pre-fills a fake-worker path; only the browser needs ours.
-    pdfjs.GlobalWorkerOptions.workerSrc ||= WORKER_SRC;
-    return pdfjs;
-  });
+  if (pdfjsPromise === null) {
+    const loading = import("pdfjs-dist").then((pdfjs) => {
+      // In Node pdf.js pre-fills a fake-worker path; only the browser needs ours.
+      pdfjs.GlobalWorkerOptions.workerSrc ||= WORKER_SRC;
+      return pdfjs;
+    });
+    pdfjsPromise = loading;
+    loading.catch(() => {
+      if (pdfjsPromise === loading) pdfjsPromise = null;
+    });
+  }
   return pdfjsPromise;
 }
 
@@ -22,8 +29,15 @@ export function getSourceDocument(src: SourceDoc): Promise<PDFDocumentProxy> {
   let task = documents.get(src.id);
   if (!task) {
     // pdf.js transfers (detaches) the buffer it is given; the workspace keeps the original.
-    task = getPdfjs().then((pdfjs) => pdfjs.getDocument({ data: src.bytes.slice() }));
+    const opening = getPdfjs().then((pdfjs) => pdfjs.getDocument({ data: src.bytes.slice() }));
+    task = opening.then(async (t) => {
+      await t.promise;
+      return t;
+    });
     documents.set(src.id, task);
+    task.catch(() => {
+      if (documents.get(src.id) === task) documents.delete(src.id);
+    });
   }
   return task.then((t) => t.promise);
 }

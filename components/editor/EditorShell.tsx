@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { toast } from "sonner";
 import { placeSignature } from "@/components/editor/actions";
 import { CommandPalette } from "@/components/editor/CommandPalette";
@@ -13,6 +13,7 @@ import { ThumbnailRail } from "@/components/editor/ThumbnailRail";
 import { Toolbar } from "@/components/editor/Toolbar";
 import { useAutosave } from "@/components/editor/useAutosave";
 import { useAutosaveThumbnail } from "@/components/editor/useAutosaveThumbnail";
+import { useReleaseSources } from "@/components/editor/useReleaseSources";
 import { useShortcuts } from "@/components/editor/useShortcuts";
 import { useSignatureVault } from "@/components/editor/useSignatureVault";
 import { StorageBanner } from "@/components/StorageBanner";
@@ -89,6 +90,8 @@ export function EditorShell({ workspaceId }: { workspaceId: string }) {
   }, [workspaceId]);
 
   useAutosave(thumbnailRef);
+  const sources = workspace?.sources;
+  useReleaseSources(workspaceId, useMemo(() => Object.keys(sources ?? {}), [sources]));
 
   useEffect(() => {
     // A document opens showing a whole page; fit width stays a keystroke (⌘0) away.

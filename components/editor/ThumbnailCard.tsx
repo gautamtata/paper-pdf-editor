@@ -11,7 +11,7 @@ import {
   SquarePlus,
   Trash2,
 } from "lucide-react";
-import { useRef, useState } from "react";
+import { memo, useRef, useState } from "react";
 import {
   deleteSelected,
   duplicateSelected,
@@ -20,6 +20,7 @@ import {
   rotateSelected,
 } from "@/components/editor/actions";
 import { pageBox, totalRotation } from "@/components/editor/geometry";
+import { RenderFailed } from "@/components/editor/RenderFailed";
 import { useInView } from "@/components/editor/useInView";
 import { usePageCanvas } from "@/components/editor/usePageCanvas";
 import { Button } from "@/components/ui/button";
@@ -57,7 +58,8 @@ interface ThumbnailCardProps {
   onSelect: (id: PageId, mode: SelectMode) => void;
 }
 
-export function ThumbnailCard({
+/** Memoised: see `PageView`; the rail re-renders on every annotation frame too. */
+export const ThumbnailCard = memo(function ThumbnailCard({
   page,
   index,
   source,
@@ -76,7 +78,7 @@ export function ThumbnailCard({
 
   const natural = pageBox(page, source, 1);
   const scale = THUMB_WIDTH / natural.width;
-  const { canvasRef, painted } = usePageCanvas({
+  const { canvasRef, painted, failed, retry } = usePageCanvas({
     source,
     pageIndex: page.sourceIndex,
     rotation: totalRotation(page, source),
@@ -106,7 +108,7 @@ export function ThumbnailCard({
       // The page in view: what signing and "insert a blank after this one" act on.
       data-active={active || undefined}
       className={cn(
-        "group relative w-full max-w-[120px] touch-none list-none rounded-sm outline-none",
+        "group relative w-full max-w-[120px] touch-pan-y list-none rounded-sm outline-none",
         isDragging && "z-10 opacity-40",
       )}
       onClick={(e) => onSelect(page.id, modeFor(e))}
@@ -146,6 +148,7 @@ export function ThumbnailCard({
             className={cn("block h-full w-full transition-opacity", painted ? "opacity-100" : "opacity-0")}
           />
         )}
+        {failed ? <RenderFailed compact onRetry={retry} /> : null}
 
         <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
           <DropdownMenuTrigger asChild>
@@ -158,6 +161,8 @@ export function ThumbnailCard({
                 "opacity-0 transition-opacity group-hover:opacity-100 focus-visible:opacity-100 data-[state=open]:opacity-100",
               )}
               onPointerDown={(e) => e.stopPropagation()}
+              onMouseDown={(e) => e.stopPropagation()}
+              onTouchStart={(e) => e.stopPropagation()}
               onClick={(e) => e.stopPropagation()}
             >
               <MoreVertical className="size-3.5" />
@@ -204,4 +209,4 @@ export function ThumbnailCard({
       </span>
     </li>
   );
-}
+});

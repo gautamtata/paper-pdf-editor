@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
-import { zoomTo } from "@/components/editor/actions";
+import { useCallback, useEffect, useMemo, useRef, useState, type RefObject } from "react";
+import { pageOrder, zoomTo } from "@/components/editor/actions";
 import { pageBox } from "@/components/editor/geometry";
 import { PageView } from "@/components/editor/PageView";
+import { usePageOrder } from "@/components/editor/usePageOrder";
 import { useVisiblePage } from "@/components/editor/useVisiblePage";
-import type { SourceDoc, SourceId, VirtualPage } from "@/lib/pdf/types";
+import type { PageId, SourceDoc, SourceId, VirtualPage } from "@/lib/pdf/types";
 import { MAX_ZOOM, MIN_ZOOM, editorStore, useEditor } from "@/lib/store/editor";
 import { useWorkspace } from "@/lib/store/workspace";
 import { dpr } from "@/lib/utils";
@@ -78,7 +79,11 @@ export function PageViewer({ onDisplayScale, onSaveSignature }: PageViewerProps)
   const { width, height } = useElementSize(ref);
 
   const extent = useMemo(() => extentOf(pages, sources), [pages, sources]);
-  const order = useMemo(() => pages.map((page) => page.id), [pages]);
+  const order = usePageOrder(pages);
+  const onSelect = useCallback(
+    (id: PageId) => editorStore.getState().selectPage(id, "replace", pageOrder()),
+    [],
+  );
 
   const displayScale = useMemo(() => {
     if (zoomMode === "custom" || width === 0) return zoom;
@@ -92,7 +97,7 @@ export function PageViewer({ onDisplayScale, onSaveSignature }: PageViewerProps)
   }, [displayScale, onDisplayScale]);
 
   const renderScale = useSettled(displayScale, RENDER_DELAY) * dpr();
-  const near = useVisiblePage(ref, pages);
+  const near = useVisiblePage(ref, order);
 
   // React listens for wheel passively, so pinch-zoom needs its own listener to preventDefault.
   useEffect(() => {
@@ -129,7 +134,7 @@ export function PageViewer({ onDisplayScale, onSaveSignature }: PageViewerProps)
               renderScale={renderScale}
               near={near.has(page.id)}
               selected={selectedPageIds.has(page.id)}
-              onSelect={() => editorStore.getState().selectPage(page.id, "replace", order)}
+              onSelect={onSelect}
               onSaveSignature={onSaveSignature}
             />
           ))
