@@ -46,7 +46,7 @@ interface CommandPaletteProps {
   onOpenChange: (open: boolean) => void;
   /** Puts the cursor in the document name field in the header. */
   onRename: () => void;
-  onExport?: () => void;
+  onExport: () => void;
 }
 
 function PaletteItem({
@@ -179,7 +179,7 @@ export function CommandPalette({ open, onOpenChange, onRename, onExport }: Comma
                 <Redo2 />
                 Redo
               </PaletteItem>
-              <PaletteItem onSelect={run(() => onExport?.())} disabled={onExport === undefined}>
+              <PaletteItem onSelect={run(onExport)}>
                 <Download />
                 Export as PDF
               </PaletteItem>

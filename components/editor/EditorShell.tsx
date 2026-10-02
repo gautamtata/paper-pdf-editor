@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { placeSignature } from "@/components/editor/actions";
 import { CommandPalette } from "@/components/editor/CommandPalette";
 import { EditorHeader } from "@/components/editor/EditorHeader";
+import { useExport } from "@/components/editor/ExportButton";
 import { PageViewer } from "@/components/editor/PageViewer";
 import { SignatureDialog } from "@/components/editor/SignatureDialog";
 import { ThumbnailRail } from "@/components/editor/ThumbnailRail";
@@ -50,6 +51,7 @@ export function EditorShell({ workspaceId }: { workspaceId: string }) {
   const nameRef = useRef<HTMLInputElement>(null);
   const thumbnailRef = useAutosaveThumbnail();
   const vault = useSignatureVault();
+  const { exportNow, running: exporting } = useExport();
 
   const saveSignature = useCallback(
     (png: Uint8Array) => {
@@ -95,6 +97,7 @@ export function EditorShell({ workspaceId }: { workspaceId: string }) {
 
   useShortcuts({
     displayScale,
+    onExport: () => void exportNow(),
     onOpenPalette: () => setPaletteOpen(true),
   });
 
@@ -149,7 +152,11 @@ export function EditorShell({ workspaceId }: { workspaceId: string }) {
         {/* The toolbar floats over the pages, centred on them rather than on the window. */}
         <div className="relative flex min-w-0 flex-1">
           <PageViewer onDisplayScale={setDisplayScale} onSaveSignature={saveSignature} />
-          <Toolbar displayScale={displayScale} />
+          <Toolbar
+            displayScale={displayScale}
+            onExport={() => void exportNow()}
+            exporting={exporting}
+          />
         </div>
       </div>
 
@@ -166,6 +173,7 @@ export function EditorShell({ workspaceId }: { workspaceId: string }) {
       <CommandPalette
         open={paletteOpen}
         onOpenChange={setPaletteOpen}
+        onExport={() => void exportNow()}
         onRename={() => {
           nameRef.current?.focus();
           nameRef.current?.select();

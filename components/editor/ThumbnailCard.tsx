@@ -103,6 +103,8 @@ export function ThumbnailCard({
       aria-selected={selected}
       data-testid="thumbnail"
       data-page-card={page.id}
+      // The page in view: what signing and "insert a blank after this one" act on.
+      data-active={active || undefined}
       className={cn(
         "group relative w-full max-w-[120px] touch-none list-none rounded-sm outline-none",
         isDragging && "z-10 opacity-40",

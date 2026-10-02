@@ -11,7 +11,7 @@ import { isPdfFile } from "@/lib/utils";
 
 export const ZOOM_STEPS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3, 4] as const;
 
-const plural = (n: number, word: string): string => `${n} ${word}${n === 1 ? "" : "s"}`;
+export const plural = (n: number, word: string): string => `${n} ${word}${n === 1 ? "" : "s"}`;
 
 export const pageOrder = (): PageId[] =>
   workspaceStore.getState().workspace?.pages.map((page) => page.id) ?? [];

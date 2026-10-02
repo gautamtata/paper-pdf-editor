@@ -1,52 +1,27 @@
 "use client";
 
-import { Download, FilePlus2, Redo2, Undo2 } from "lucide-react";
-import { useRef, type ReactElement } from "react";
+import { FilePlus2, Redo2, Undo2 } from "lucide-react";
+import { useRef } from "react";
 import { addFiles } from "@/components/editor/actions";
+import { ExportButton } from "@/components/editor/ExportButton";
+import { Hint } from "@/components/editor/Hint";
 import { TOOLS, TOOL_TEST_IDS } from "@/components/editor/tools";
 import { ZoomMenu } from "@/components/editor/ZoomMenu";
 import { Button } from "@/components/ui/button";
-import { Kbd, useModKey } from "@/components/ui/kbd";
-import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useModKey } from "@/components/ui/kbd";
 import { editorStore, useEditor } from "@/lib/store/editor";
 import { useWorkspace, workspaceStore } from "@/lib/store/workspace";
 import { cn } from "@/lib/utils";
-
-function Hint({
-  label,
-  keys,
-  note,
-  children,
-}: {
-  label: string;
-  keys?: string;
-  note?: string;
-  children: ReactElement;
-}) {
-  return (
-    <Tooltip>
-      <TooltipTrigger asChild>{children}</TooltipTrigger>
-      <TooltipContent side="top">
-        {label}
-        {note === undefined ? null : <span className="opacity-60">{note}</span>}
-        {keys === undefined ? null : (
-          <Kbd className="border-transparent bg-white/15 text-paper-100 dark:bg-black/10 dark:text-paper-800">
-            {keys}
-          </Kbd>
-        )}
-      </TooltipContent>
-    </Tooltip>
-  );
-}
 
 const Divider = () => <span aria-hidden className="mx-0.5 h-6 w-px shrink-0 bg-border" />;
 
 interface ToolbarProps {
   displayScale: number;
-  onExport?: () => void;
+  onExport: () => void;
+  exporting: boolean;
 }
 
-export function Toolbar({ displayScale, onExport }: ToolbarProps) {
+export function Toolbar({ displayScale, onExport, exporting }: ToolbarProps) {
   const tool = useEditor((s) => s.tool);
   const canUndo = useWorkspace((s) => s.past.length > 0);
   const canRedo = useWorkspace((s) => s.future.length > 0);
@@ -141,24 +116,7 @@ export function Toolbar({ displayScale, onExport }: ToolbarProps) {
         <ZoomMenu displayScale={displayScale} />
         <Divider />
 
-        <Hint
-          label="Export"
-          keys={`${mod}E`}
-          note={onExport === undefined ? "ready in the next release" : undefined}
-        >
-          <Button
-            size="sm"
-            aria-disabled={onExport === undefined}
-            className={cn(
-              "h-8 shrink-0 rounded-full",
-              onExport === undefined && "opacity-50 shadow-none",
-            )}
-            onClick={() => onExport?.()}
-          >
-            <Download className="size-4" />
-            Export
-          </Button>
-        </Hint>
+        <ExportButton onExport={onExport} running={exporting} />
       </div>
     </div>
   );
