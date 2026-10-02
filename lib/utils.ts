@@ -3,6 +3,10 @@ import { twMerge } from "tailwind-merge";
 
 export const cn = (...inputs: ClassValue[]) => twMerge(clsx(inputs));
 
+/** 1 outside a browser, so render scales stay sane during SSR. */
+export const dpr = (): number =>
+  typeof window === "undefined" ? 1 : window.devicePixelRatio || 1;
+
 const BYTE_UNITS = ["KB", "MB", "GB"] as const;
 
 export function formatBytes(n: number): string {

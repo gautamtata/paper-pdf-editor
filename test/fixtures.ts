@@ -9,7 +9,13 @@ import {
   PDFRawStream,
   StandardFonts,
 } from "pdf-lib";
-import type { Rotation } from "@/lib/pdf/types";
+import {
+  newId,
+  pagesFromSource,
+  type Rotation,
+  type SourceDoc,
+  type Workspace,
+} from "@/lib/pdf/types";
 
 const fixtureDir = path.join(path.dirname(fileURLToPath(import.meta.url)), "fixtures");
 
@@ -46,6 +52,30 @@ export async function makeOffsetPdf(): Promise<Uint8Array> {
 /** A committed PDF whose trailer references a standard-security `/Encrypt` dict. */
 export async function makeEncryptedPdf(): Promise<Uint8Array> {
   return new Uint8Array(await readFile(path.join(fixtureDir, "encrypted.pdf")));
+}
+
+/**
+ * A workspace of `pageCount` pages over one source whose bytes are never parsed: for UI tests
+ * that mock the renderer. Page i is 400+i x 600pt, matching `makePdf`.
+ */
+export function makeWorkspace(pageCount: number, name = "doc"): Workspace {
+  const source: SourceDoc = {
+    id: newId(),
+    name: `${name}.pdf`,
+    bytes: new Uint8Array(0),
+    pageCount,
+    pages: Array.from({ length: pageCount }, (_, i) => ({
+      size: { w: 400 + i, h: 600 },
+      rotation: 0 as Rotation,
+    })),
+  };
+  return {
+    id: newId(),
+    name,
+    sources: { [source.id]: source },
+    pages: pagesFromSource(source),
+    updatedAt: Date.now(),
+  };
 }
 
 export const GARBAGE = new TextEncoder().encode("not a pdf at all");

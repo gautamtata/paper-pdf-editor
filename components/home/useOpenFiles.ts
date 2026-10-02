@@ -3,8 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useRef, useState } from "react";
 import { toast } from "sonner";
-import { PdfLoadError, loadSource } from "@/lib/pdf/load";
-import type { SourceDoc } from "@/lib/pdf/types";
+import { loadPdfFiles } from "@/lib/pdf/open-files";
 import { repo } from "@/lib/storage/repo";
 import { workspaceStore } from "@/lib/store/workspace";
 
@@ -34,20 +33,7 @@ export function useOpenFiles(): OpenFiles {
 
       setBusy(true);
       try {
-        const sources: SourceDoc[] = [];
-        for (const file of files) {
-          try {
-            const bytes = new Uint8Array(await file.arrayBuffer());
-            sources.push(await loadSource(file.name, bytes));
-          } catch (err) {
-            if (err instanceof PdfLoadError) {
-              toast.error(err.message);
-            } else {
-              console.error(err);
-              toast.error(`Couldn't read ${file.name}`);
-            }
-          }
-        }
+        const sources = await loadPdfFiles(files);
         if (sources.length === 0) return;
 
         const ws = workspaceStore.getState().create(nameFrom(sources.map((s) => s.name)), sources);
