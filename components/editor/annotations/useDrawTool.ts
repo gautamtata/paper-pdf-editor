@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { finishOpenEditor } from "@/components/editor/annotations/openEditor";
 import { clampRect, normalizeRect } from "@/lib/annotations/geometry";
 import { strokeToPath } from "@/lib/annotations/ink";
 import {
@@ -48,7 +49,8 @@ interface Options {
 export interface DrawTool {
   draft: Draft | null;
   attachDraft(el: SVGElement | null): void;
-  down(e: ReactPointerEvent<SVGElement>): void;
+  /** `tool` is the one the press was made with: finishing an open text box may change it. */
+  down(tool: Tool, e: ReactPointerEvent<SVGElement>): void;
   move(e: ReactPointerEvent<SVGElement>): void;
   up(e: ReactPointerEvent<SVGElement>): void;
   cancel(): void;
@@ -113,15 +115,17 @@ export function useDrawTool({ pageId, pageSize, toPdf, onEditText }: Options): D
   );
 
   const down = useCallback(
-    (e: ReactPointerEvent<SVGElement>) => {
-      const editor = editorStore.getState();
+    (tool: Tool, e: ReactPointerEvent<SVGElement>) => {
+      // Only one box is ever open: whatever was open commits or discards itself before this press
+      // touches the store, so the new gesture starts from pages with the old one settled.
+      finishOpenEditor();
       const at = toPdf(e);
-      if (editor.tool === Tool.Text) {
+      if (tool === Tool.Text) {
         addText(at);
         return;
       }
-      const { tool, penColor, penSize, highlightColor } = editor;
       if (tool !== Tool.Pen && tool !== Tool.Highlight && tool !== Tool.Rect) return;
+      const { penColor, penSize, highlightColor } = editorStore.getState();
 
       gesture.current = {
         tool,
@@ -220,9 +224,9 @@ export function useDrawTool({ pageId, pageSize, toPdf, onEditText }: Options): D
     [commitBox, commitInk, reset],
   );
 
+  /** The draft lives on the element, never in the store, so dropping it touches no gesture. */
   const cancel = useCallback(() => {
     if (gesture.current === null) return;
-    workspaceStore.getState().cancelGesture();
     reset();
   }, [reset]);
 

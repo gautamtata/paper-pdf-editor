@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { finishOpenEditor } from "@/components/editor/annotations/openEditor";
 import { handleRect, type Handle } from "@/components/editor/annotations/SelectionHandles";
 import { clampRect } from "@/lib/annotations/geometry";
 import {
@@ -91,6 +92,7 @@ export function useSelectTool({ pageId, pageSize, toPdf }: Options): SelectTool 
       e.stopPropagation();
       // The shape owns the gesture: no focus reset, no native drag, no text selection under it.
       e.preventDefault();
+      finishOpenEditor();
       editorStore.getState().setSelectedAnnotation({ pageId, id: a.id });
       drag.current = {
         base: a,
@@ -144,18 +146,19 @@ export function useSelectTool({ pageId, pageSize, toPdf }: Options): SelectTool 
     setDragging(false);
     if (d === null || d.latest === null) return;
     if (sameGeometry(d.base, d.latest)) {
-      workspaceStore.getState().cancelGesture();
+      workspaceStore.getState().cancelGesture({ pageId, id: d.base.id });
       return;
     }
     workspaceStore.getState().updateAnnotation(pageId, d.base.id, geometryPatch(d.latest));
   }, [pageId]);
 
   const cancel = useCallback(() => {
-    if (drag.current === null) return;
+    const d = drag.current;
+    if (d === null) return;
     drag.current = null;
     setDragging(false);
-    workspaceStore.getState().cancelGesture();
-  }, []);
+    workspaceStore.getState().cancelGesture({ pageId, id: d.base.id });
+  }, [pageId]);
 
   return { dragging, shapeDown, handleDown, backgroundDown, move, up, cancel };
 }

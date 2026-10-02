@@ -1,5 +1,5 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   AnnotationKind,
@@ -23,7 +23,7 @@ afterEach(cleanup);
 
 beforeEach(() => {
   workspaceStore.getState().load(makeWorkspace(2, "lease"));
-  editorStore.setState({ tool: Tool.Select, selectedAnnotation: null });
+  editorStore.setState({ tool: Tool.Select, selectedAnnotation: null, editingAnnotation: null });
   // jsdom lays nothing out, so the layer's box has to be stubbed for pointer maths.
   vi.spyOn(Element.prototype, "getBoundingClientRect").mockReturnValue({
     x: 0,
@@ -54,8 +54,19 @@ const pageId = (): string => {
   return page.id;
 };
 
-const annotations = (): Annotation[] =>
-  workspaceStore.getState().workspace?.pages[0].annotations ?? [];
+/** Mid-test tool changes have to flush, the way the toolbar's own click would. */
+const setTool = (tool: Tool): void => {
+  act(() => {
+    editorStore.setState({ tool });
+  });
+};
+
+/** The text boxes open for editing, anywhere in the document. */
+const openBoxes = (): HTMLElement[] =>
+  Array.from(document.querySelectorAll<HTMLElement>("[data-slot=text-editor][role=textbox]"));
+
+const annotations = (index = 0): Annotation[] =>
+  workspaceStore.getState().workspace?.pages[index].annotations ?? [];
 
 function renderLayer() {
   const page = workspaceStore.getState().workspace?.pages[0];
@@ -75,7 +86,101 @@ function renderLayer() {
   return { ...view, layer, rerender };
 }
 
+/** Both pages of the workspace, as the viewer mounts them: one layer each, one editor between them. */
+function renderBothPages() {
+  const pages = () => {
+    const all = workspaceStore.getState().workspace?.pages;
+    if (all === undefined) throw new Error("no pages");
+    return all;
+  };
+  const layers = () => (
+    <>
+      {pages().map((page) => (
+        <AnnotationLayer
+          key={page.id}
+          page={page}
+          transform={TRANSFORM}
+          width={WIDTH}
+          height={HEIGHT}
+        />
+      ))}
+    </>
+  );
+  const view = render(layers());
+  const rerender = () => view.rerender(layers());
+  const all = view.container.querySelectorAll("[data-testid=annotation-layer]");
+  return { ...view, rerender, first: all[0], second: all[1] };
+}
+
 describe("AnnotationLayer", () => {
+  it("moves the open text box to the page that was clicked last", () => {
+    editorStore.setState({ tool: Tool.Text });
+    const { first, second, rerender } = renderBothPages();
+
+    fireEvent.pointerDown(first, { pointerId: 1, clientX: 60, clientY: 120 });
+    rerender();
+    console.log("DBG", document.querySelectorAll("[role=textbox]").length,
+      document.querySelectorAll("[data-slot=text-editor]").length,
+      document.querySelectorAll('[data-slot="text-editor"][role="textbox"]').length);
+    expect(openBoxes()).toHaveLength(1);
+
+    fireEvent.pointerDown(second, { pointerId: 1, clientX: 80, clientY: 140 });
+    rerender();
+
+    // One box, on page two, and page one is left with no phantom behind.
+    const open = openBoxes();
+    expect(open).toHaveLength(1);
+    expect(annotations(0)).toEqual([]);
+    expect(annotations(1)).toHaveLength(1);
+    expect(editorStore.getState().editingAnnotation?.pageId).toBe(
+      workspaceStore.getState().workspace?.pages[1].id,
+    );
+    expect(workspaceStore.getState().past).toEqual([]);
+
+    // Page two still takes pointer events: close the box, then draw on it.
+    fireEvent.keyDown(open[0], { key: "Escape" });
+    rerender();
+    expect(annotations(1)).toEqual([]);
+
+    setTool(Tool.Rect);
+    fireEvent.pointerDown(second, { pointerId: 2, clientX: 20, clientY: 20 });
+    fireEvent.pointerMove(second, { pointerId: 2, clientX: 120, clientY: 90 });
+    fireEvent.pointerUp(second, { pointerId: 2, clientX: 120, clientY: 90 });
+    expect(annotations(1)).toHaveLength(1);
+    expect(annotations(1)[0].kind).toBe(AnnotationKind.Rect);
+  });
+
+  it("spends one history entry per text box when a second is opened from the first", () => {
+    editorStore.setState({ tool: Tool.Text });
+    const { first, second, rerender } = renderBothPages();
+
+    fireEvent.pointerDown(first, { pointerId: 1, clientX: 60, clientY: 120 });
+    rerender();
+    const [boxA] = openBoxes();
+    boxA.textContent = "alpha";
+
+    // Opening B commits A where it stands, rather than folding the two together.
+    setTool(Tool.Text);
+    fireEvent.pointerDown(second, { pointerId: 1, clientX: 80, clientY: 140 });
+    rerender();
+    expect(annotations(0)[0]).toMatchObject({ content: "alpha" });
+    expect(workspaceStore.getState().past).toHaveLength(1);
+
+    const [boxB] = openBoxes();
+    boxB.textContent = "beta";
+    fireEvent.blur(boxB);
+    rerender();
+
+    expect(annotations(1)[0]).toMatchObject({ content: "beta" });
+    expect(workspaceStore.getState().past).toHaveLength(2);
+
+    workspaceStore.getState().undo();
+    expect(annotations(1)).toEqual([]);
+    expect(annotations(0)[0]).toMatchObject({ content: "alpha" });
+    workspaceStore.getState().undo();
+    expect(annotations(0)).toEqual([]);
+  });
+
   it("draws shapes in PDF space inside a matrix-transformed group", () => {
     workspaceStore
       .getState()
@@ -135,7 +240,7 @@ describe("AnnotationLayer", () => {
     expect(annotations()).toHaveLength(1);
     expect(workspaceStore.getState().past).toHaveLength(historyBefore);
 
-    fireEvent.keyDown(screen.getByRole("textbox"), { key: "Escape" });
+    fireEvent.keyDown(openBoxes()[0], { key: "Escape" });
     rerender();
 
     expect(annotations()).toEqual([]);
@@ -156,7 +261,7 @@ describe("AnnotationLayer", () => {
     fireEvent.pointerDown(shape as Element, { pointerId: 1, clientX: 60, clientY: 550 });
     rerender();
 
-    const box = screen.getByRole("textbox");
+    const [box] = openBoxes();
     box.textContent = "";
     fireEvent.blur(box);
     rerender();

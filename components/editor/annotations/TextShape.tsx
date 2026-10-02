@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type PointerEvent } from "react";
+import { registerOpenEditor } from "@/components/editor/annotations/openEditor";
 import { rgbToCss, type TextAnnotation } from "@/lib/annotations/types";
 
 interface TextShapeProps {
@@ -35,18 +36,28 @@ export function TextShape({
   onCancel,
 }: TextShapeProps) {
   const ref = useRef<HTMLDivElement>(null);
-  const cancelled = useRef(false);
+  const finished = useRef(false);
+  const latestCommit = useRef(onCommit);
   const [grown, setGrown] = useState(a.rect.h);
+
+  useEffect(() => {
+    latestCommit.current = onCommit;
+  });
 
   useEffect(() => {
     const el = ref.current;
     if (!editing || el === null) return;
-    cancelled.current = false;
+    finished.current = false;
     el.textContent = a.content;
     el.focus();
     caretToEnd(el);
     setGrown(Math.max(el.scrollHeight, a.rect.h));
-  }, [editing, a.content, a.rect.h]);
+    // Another page's layer finishes this box through here before it opens one of its own.
+    return registerOpenEditor(a.id, () => {
+      finished.current = true;
+      latestCommit.current(el.textContent ?? "", el.scrollHeight);
+    });
+  }, [editing, a.id, a.content, a.rect.h]);
 
   const height = editing ? Math.max(grown, a.rect.h) : a.rect.h;
 
@@ -58,6 +69,7 @@ export function TextShape({
       <foreignObject x={0} y={0} width={a.rect.w} height={height} style={{ overflow: "visible" }}>
         <div
           ref={ref}
+          data-slot="text-editor"
           contentEditable={editing ? "plaintext-only" : false}
           suppressContentEditableWarning
           role={editing ? "textbox" : undefined}
@@ -80,13 +92,13 @@ export function TextShape({
           }}
           onInput={(e) => setGrown(e.currentTarget.scrollHeight)}
           onBlur={(e) => {
-            if (cancelled.current) return;
+            if (finished.current) return;
             onCommit(e.currentTarget.textContent ?? "", e.currentTarget.scrollHeight);
           }}
           onKeyDown={(e) => {
             if (e.key === "Escape") {
               e.preventDefault();
-              cancelled.current = true;
+              finished.current = true;
               e.currentTarget.blur();
               onCancel();
               return;

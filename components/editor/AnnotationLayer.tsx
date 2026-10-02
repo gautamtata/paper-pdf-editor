@@ -10,6 +10,7 @@ import {
   type RefObject,
 } from "react";
 import { ImageShape } from "@/components/editor/annotations/ImageShape";
+import { finishOpenEditor } from "@/components/editor/annotations/openEditor";
 import { InkShape } from "@/components/editor/annotations/InkShape";
 import { PropertiesPopover } from "@/components/editor/annotations/PropertiesPopover";
 import { RectShape } from "@/components/editor/annotations/RectShape";
@@ -17,22 +18,11 @@ import { screenBox, SelectionHandles } from "@/components/editor/annotations/Sel
 import { TextShape } from "@/components/editor/annotations/TextShape";
 import { useDrawTool } from "@/components/editor/annotations/useDrawTool";
 import { useSelectTool } from "@/components/editor/annotations/useSelectTool";
-import {
-  applyMatrix,
-  clampRect,
-  invertMatrix,
-  matrixToCss,
-  type Matrix,
-} from "@/lib/annotations/geometry";
-import {
-  AnnotationKind,
-  annotationBounds,
-  type Annotation,
-  type TextAnnotation,
-} from "@/lib/annotations/types";
+import { useTextEditing } from "@/components/editor/annotations/useTextEditing";
+import { applyMatrix, invertMatrix, matrixToCss, type Matrix } from "@/lib/annotations/geometry";
+import { AnnotationKind, annotationBounds, type Annotation } from "@/lib/annotations/types";
 import type { VirtualPage } from "@/lib/pdf/types";
-import { Tool, editorStore, useEditor } from "@/lib/store/editor";
-import { workspaceStore } from "@/lib/store/workspace";
+import { Tool, useEditor } from "@/lib/store/editor";
 import { cn } from "@/lib/utils";
 
 const CURSORS: Partial<Record<Tool, string>> = {
@@ -48,6 +38,9 @@ const DRAW_TOOLS = new Set<Tool>([Tool.Pen, Tool.Highlight, Tool.Rect, Tool.Text
 const DOUBLE_PRESS_MS = 400;
 
 type Press = { id: string; at: number } | null;
+
+const insideEditor = (target: EventTarget | null): boolean =>
+  target instanceof Element && target.closest("[data-slot=text-editor]") !== null;
 
 const doublePressed = (last: RefObject<Press>, id: string): boolean => {
   const previous = last.current;
@@ -79,7 +72,8 @@ export function AnnotationLayer({
 }: AnnotationLayerProps) {
   const tool = useEditor((s) => s.tool);
   const selection = useEditor((s) => s.selectedAnnotation);
-  const [editingId, setEditingId] = useState<string | null>(null);
+  const text = useTextEditing(page);
+  const { editingId, editingOpen } = text;
   const lastPress = useRef<Press>(null);
   const [svg, setSvg] = useState<SVGSVGElement | null>(null);
 
@@ -101,7 +95,7 @@ export function AnnotationLayer({
     pageId: page.id,
     pageSize: page.size,
     toPdf,
-    onEditText: setEditingId,
+    onEditText: text.open,
   });
   const select = useSelectTool({ pageId: page.id, pageSize: page.size, toPdf });
 
@@ -125,31 +119,6 @@ export function AnnotationLayer({
     return () => window.removeEventListener("keydown", onKeyDown, true);
   }, [gesturing, cancelDraw, cancelSelect]);
 
-  /** Escape: the edits go, and a box that never committed goes with its own creation. */
-  const cancelText = (a: TextAnnotation): void => {
-    setEditingId(null);
-    if (a.content !== "") return;
-    workspaceStore.getState().cancelGesture();
-    editorStore.getState().setSelectedAnnotation(null);
-  };
-
-  /** A text box keeps its top edge and grows downwards, so a taller box has a lower `y`. */
-  const commitText = (a: TextAnnotation, content: string, contentHeight: number): void => {
-    setEditingId(null);
-    editorStore.getState().setTool(Tool.Select);
-    const ws = workspaceStore.getState();
-    if (content.trim() === "") {
-      // Still transient when nothing was ever committed; emptying a saved box is a real deletion.
-      if (a.content === "") ws.cancelGesture();
-      else ws.removeAnnotation(page.id, a.id);
-      editorStore.getState().setSelectedAnnotation(null);
-      return;
-    }
-    const h = Math.max(contentHeight, a.rect.h);
-    const rect = clampRect({ x: a.rect.x, y: a.rect.y + a.rect.h - h, w: a.rect.w, h }, page.size);
-    ws.updateAnnotation(page.id, a.id, { content, rect });
-  };
-
   const shapeOf = (a: Annotation) => {
     const onPointerDown = (e: PointerEvent<SVGElement>) => select.shapeDown(a, e);
     switch (a.kind) {
@@ -164,13 +133,13 @@ export function AnnotationLayer({
               if (interactive && doublePressed(lastPress, a.id)) {
                 e.stopPropagation();
                 e.preventDefault();
-                setEditingId(a.id);
+                text.open(a.id);
                 return;
               }
               onPointerDown(e);
             }}
-            onCommit={(content, contentHeight) => commitText(a, content, contentHeight)}
-            onCancel={() => cancelText(a)}
+            onCommit={(content, contentHeight) => text.commit(a, content, contentHeight)}
+            onCancel={() => text.cancel(a)}
           />
         );
       case AnnotationKind.Ink:
@@ -207,17 +176,22 @@ export function AnnotationLayer({
         onPointerDownCapture={(e) => {
           // Capturing on the layer keeps a drag alive once the pointer leaves the page box, but
           // an open text box needs its own clicks for the caret. jsdom has no pointer capture.
-          if (editingId === null && typeof e.currentTarget.setPointerCapture === "function") {
+          if (!insideEditor(e.target) && typeof e.currentTarget.setPointerCapture === "function") {
             e.currentTarget.setPointerCapture(e.pointerId);
           }
         }}
         onPointerDown={(e) => {
           if (e.pointerType === "mouse" && e.button !== 0) return;
-          if (editingId !== null) return;
+          // Inside the open box the press places the caret; anywhere else it finishes the box
+          // first, which `draw.down` and `select.shapeDown` do for themselves.
+          if (editingOpen && insideEditor(e.target)) return;
           // Keeps the default focus reset from blurring a text box the same gesture just opened.
           e.preventDefault();
-          if (drawing) draw.down(e);
-          else if (interactive) select.backgroundDown();
+          if (drawing) draw.down(tool, e);
+          else if (interactive) {
+            finishOpenEditor();
+            select.backgroundDown();
+          }
         }}
         onPointerMove={(e) => {
           draw.move(e);

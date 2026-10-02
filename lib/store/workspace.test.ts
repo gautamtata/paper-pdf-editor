@@ -37,7 +37,13 @@ const deferred = (): { promise: Promise<void>; resolve: () => void } => {
 };
 
 beforeEach(() => {
-  workspaceStore.setState({ workspace: null, past: [], future: [], gestureBase: null });
+  workspaceStore.setState({
+    workspace: null,
+    past: [],
+    future: [],
+    gestureBase: null,
+    gestureOwner: null,
+  });
 });
 
 afterEach(() => {
@@ -413,6 +419,24 @@ describe("annotations", () => {
     expect(workspaceStore.getState().gestureBase).toBeNull();
   });
 
+  it("abandons a half-made annotation when another kind of edit commits", () => {
+    workspaceStore.getState().create("Deck", [srcDoc("a", 2)]);
+    const [p0, p1] = ids(ws().pages);
+    workspaceStore
+      .getState()
+      .addAnnotation(p0, createText({ x: 0, y: 0, w: 10, h: 10 }), { transient: true });
+
+    workspaceStore.getState().deletePages([p1]);
+
+    expect(annotationsOf(p0)).toEqual([]);
+    expect(ids(ws().pages)).toEqual([p0]);
+    expect(workspaceStore.getState().gestureBase).toBeNull();
+
+    workspaceStore.getState().undo();
+    expect(ids(ws().pages)).toEqual([p0, p1]);
+    expect(annotationsOf(p0)).toEqual([]);
+  });
+
   describe("cancelGesture", () => {
     it("restores the pages the gesture started from without recording history", () => {
       const pageId = withPage();
@@ -434,6 +458,24 @@ describe("annotations", () => {
       expect(annotationsOf(pageId)[0]).toEqual(text);
       expect(workspaceStore.getState().past).toHaveLength(historyAfterAdd);
       expect(workspaceStore.getState().gestureBase).toBeNull();
+    });
+
+    it("refuses to cancel a gesture another annotation owns", () => {
+      const pageId = withPage();
+      const text = createText({ x: 0, y: 0, w: 10, h: 10 });
+      workspaceStore.getState().addAnnotation(pageId, text, { transient: true });
+
+      workspaceStore.getState().cancelGesture({ pageId, id: "someone-else" });
+      expect(annotationsOf(pageId)).toHaveLength(1);
+      expect(workspaceStore.getState().gestureBase).not.toBeNull();
+
+      workspaceStore.getState().cancelGesture({ pageId: "other-page", id: text.id });
+      expect(annotationsOf(pageId)).toHaveLength(1);
+
+      workspaceStore.getState().cancelGesture({ pageId, id: text.id });
+      expect(annotationsOf(pageId)).toEqual([]);
+      expect(workspaceStore.getState().gestureBase).toBeNull();
+      expect(workspaceStore.getState().gestureOwner).toBeNull();
     });
 
     it("is a no-op when no gesture is in flight", () => {

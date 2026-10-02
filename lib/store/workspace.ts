@@ -3,6 +3,15 @@ import { createStore } from "zustand/vanilla";
 import type { Annotation } from "@/lib/annotations/types";
 import * as ops from "@/lib/pdf/ops";
 import {
+  EMPTY_HISTORY,
+  mapAnnotations,
+  mapPage,
+  merge,
+  pushSnapshot,
+  sameOwner,
+  type GestureOwner,
+} from "@/lib/store/edits";
+import {
   newId,
   pagesFromSource,
   type PageId,
@@ -14,8 +23,7 @@ import {
   type Workspace,
 } from "@/lib/pdf/types";
 
-/** Snapshots kept in `past`; one per undoable action. */
-const HISTORY_LIMIT = 100;
+export type { GestureOwner } from "@/lib/store/edits";
 
 export interface WorkspaceState {
   workspace: Workspace | null;
@@ -26,6 +34,8 @@ export interface WorkspaceState {
    * The committing update pushes this, so a whole drag costs one history entry.
    */
   gestureBase: VirtualPage[] | null;
+  /** The annotation that armed `gestureBase`; the gesture is only ever this one's to cancel. */
+  gestureOwner: GestureOwner | null;
 
   load(ws: Workspace): void;
   create(name: string, sources: SourceDoc[]): Workspace;
@@ -47,8 +57,11 @@ export interface WorkspaceState {
     opts?: { transient?: boolean },
   ): void;
   removeAnnotation(pageId: PageId, id: string): void;
-  /** Drops the transient edits of the current gesture; no history entry, and a no-op without one. */
-  cancelGesture(): void;
+  /**
+   * Drops the transient edits of the current gesture; no history entry, and a no-op without one.
+   * Passing an `owner` that does not hold the gesture makes it a no-op too.
+   */
+  cancelGesture(owner?: GestureOwner): void;
 
   /** Not undoable: history snapshots cover `pages` only. */
   rename(name: string): void;
@@ -59,53 +72,24 @@ export interface WorkspaceState {
   canRedo(): boolean;
 }
 
-const pushSnapshot = (past: VirtualPage[][], pages: VirtualPage[]): VirtualPage[][] => [
-  ...past.slice(-(HISTORY_LIMIT - 1)),
-  pages,
-];
-
-/** `kind` and `id` are the annotation's identity, so a patch may never change them. */
-const merge = (a: Annotation, patch: Partial<Annotation>): Annotation =>
-  ({ ...a, ...patch, kind: a.kind, id: a.id }) as Annotation;
-
-/** Replaces one page; returns `pages` unchanged when the id is unknown or `next` is a no-op. */
-const mapPage = (
-  pages: VirtualPage[],
-  pageId: PageId,
-  next: (page: VirtualPage) => VirtualPage,
-): VirtualPage[] => {
-  let changed = false;
-  const out = pages.map((page) => {
-    if (page.id !== pageId) return page;
-    const updated = next(page);
-    if (updated !== page) changed = true;
-    return updated;
-  });
-  return changed ? out : pages;
-};
-
-const mapAnnotations =
-  (id: string, next: (annotations: Annotation[]) => Annotation[]) =>
-  (page: VirtualPage): VirtualPage => {
-    if (!page.annotations.some((a) => a.id === id)) return page;
-    return { ...page, annotations: next(page.annotations) };
-  };
-
 export const workspaceStore = createStore<WorkspaceState>()((set, get) => {
   /**
    * Applies an undoable edit: records one history entry and bumps `updatedAt`. Returning the
    * workspace itself from `next` means "nothing changed" and leaves the store alone.
    */
   const edit = (next: (ws: Workspace) => Workspace): void => {
-    const { workspace, past } = get();
+    const { workspace, past, gestureBase } = get();
     if (workspace === null) return;
-    const updated = next(workspace);
-    if (updated === workspace) return;
+    // Any other kind of edit abandons a half-made annotation rather than baking it into history.
+    const current = gestureBase === null ? workspace : { ...workspace, pages: gestureBase };
+    const updated = next(current);
+    if (updated === current) return;
     set({
       workspace: { ...updated, updatedAt: Date.now() },
-      past: pushSnapshot(past, workspace.pages),
+      past: pushSnapshot(past, current.pages),
       future: [],
       gestureBase: null,
+      gestureOwner: null,
     });
   };
 
@@ -120,17 +104,22 @@ export const workspaceStore = createStore<WorkspaceState>()((set, get) => {
    * pushes it, so a whole gesture — including the add that started it — costs one history entry.
    */
   const editAnnotations = (
-    pageId: PageId,
+    owner: GestureOwner,
     next: (page: VirtualPage) => VirtualPage,
     transient: boolean,
   ): void => {
-    const { workspace, gestureBase, past } = get();
+    const { workspace, gestureBase, gestureOwner, past } = get();
     if (workspace === null) return;
-    const pages = mapPage(workspace.pages, pageId, next);
+    const pages = mapPage(workspace.pages, owner.pageId, next);
     if (pages === workspace.pages) return;
     const updated = { ...workspace, pages, updatedAt: Date.now() };
     if (transient) {
-      set({ workspace: updated, gestureBase: gestureBase ?? workspace.pages });
+      // The first transient edit of a gesture owns it, so a later one cannot steal the cancel.
+      set({
+        workspace: updated,
+        gestureBase: gestureBase ?? workspace.pages,
+        gestureOwner: gestureOwner ?? owner,
+      });
       return;
     }
     set({
@@ -138,6 +127,7 @@ export const workspaceStore = createStore<WorkspaceState>()((set, get) => {
       past: pushSnapshot(past, gestureBase ?? workspace.pages),
       future: [],
       gestureBase: null,
+      gestureOwner: null,
     });
   };
 
@@ -146,8 +136,9 @@ export const workspaceStore = createStore<WorkspaceState>()((set, get) => {
     past: [],
     future: [],
     gestureBase: null,
+    gestureOwner: null,
 
-    load: (workspace) => set({ workspace, past: [], future: [], gestureBase: null }),
+    load: (workspace) => set({ ...EMPTY_HISTORY, workspace }),
 
     create: (name, sources) => {
       const workspace: Workspace = {
@@ -157,7 +148,7 @@ export const workspaceStore = createStore<WorkspaceState>()((set, get) => {
         pages: sources.flatMap(pagesFromSource),
         updatedAt: Date.now(),
       };
-      set({ workspace, past: [], future: [], gestureBase: null });
+      set({ ...EMPTY_HISTORY, workspace });
       return workspace;
     },
 
@@ -195,26 +186,28 @@ export const workspaceStore = createStore<WorkspaceState>()((set, get) => {
 
     addAnnotation: (pageId, a, opts) =>
       editAnnotations(
-        pageId,
+        { pageId, id: a.id },
         (page) => ({ ...page, annotations: [...page.annotations, a] }),
         opts?.transient === true,
       ),
 
     updateAnnotation: (pageId, id, patch, opts) =>
       editAnnotations(
-        pageId,
+        { pageId, id },
         mapAnnotations(id, (annotations) =>
           annotations.map((a) => (a.id === id ? merge(a, patch) : a)),
         ),
         opts?.transient === true,
       ),
 
-    cancelGesture: () => {
-      const { workspace, gestureBase } = get();
+    cancelGesture: (owner) => {
+      const { workspace, gestureBase, gestureOwner } = get();
       if (workspace === null || gestureBase === null) return;
+      if (owner !== undefined && !sameOwner(gestureOwner, owner)) return;
       set({
         workspace: { ...workspace, pages: gestureBase, updatedAt: Date.now() },
         gestureBase: null,
+        gestureOwner: null,
       });
     },
 
@@ -241,6 +234,7 @@ export const workspaceStore = createStore<WorkspaceState>()((set, get) => {
         past: past.slice(0, -1),
         future: [...future, workspace.pages],
         gestureBase: null,
+        gestureOwner: null,
       });
     },
 
@@ -252,6 +246,7 @@ export const workspaceStore = createStore<WorkspaceState>()((set, get) => {
         past: pushSnapshot(past, workspace.pages),
         future: future.slice(0, -1),
         gestureBase: null,
+        gestureOwner: null,
       });
     },
 

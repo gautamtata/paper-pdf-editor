@@ -40,6 +40,10 @@ export interface EditorState {
   selectedAnnotation: AnnotationRef | null;
   setSelectedAnnotation(v: AnnotationRef | null): void;
 
+  /** The one text box open for editing, anywhere in the document. */
+  editingAnnotation: AnnotationRef | null;
+  setEditingAnnotation(v: AnnotationRef | null): void;
+
   zoom: number;
   setZoom(z: number): void;
   zoomMode: ZoomMode;
@@ -96,6 +100,9 @@ export const editorStore = createStore<EditorState>()((set, get) => ({
 
   selectedAnnotation: null,
   setSelectedAnnotation: (selectedAnnotation) => set({ selectedAnnotation }),
+
+  editingAnnotation: null,
+  setEditingAnnotation: (editingAnnotation) => set({ editingAnnotation }),
 
   zoom: 1,
   setZoom: (z) => set({ zoom: clampZoom(z), zoomMode: "custom" }),
