@@ -49,7 +49,10 @@ const paintStrokes = (
   }
 };
 
-/** A pen-feel drawing surface. Points live in pad pixels; the canvas is backed at device scale. */
+/**
+ * A pen-feel drawing surface. Points live in pad pixels; the canvas is backed at device scale.
+ * The pad stays paper-toned in both themes: the inks are dark, and it stands in for the page.
+ */
 export function SignaturePad({ color, onInkChange, ref }: SignaturePadProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const strokes = useRef<InkPoint[][]>([]);
@@ -140,18 +143,18 @@ export function SignaturePad({ color, onInkChange, ref }: SignaturePadProps) {
   };
 
   return (
-    <div className="relative h-48 overflow-hidden rounded-lg border border-border-strong bg-paper-50 dark:bg-paper-900">
+    <div className="relative h-48 overflow-hidden rounded-lg border border-border-strong bg-paper-50">
       <div
         aria-hidden
         className="pointer-events-none absolute inset-x-8 bottom-12 flex items-end gap-2"
       >
-        <span className="-mb-2 text-sm text-foreground-subtle">&#10005;</span>
-        <span className="h-px flex-1 bg-border-strong/60" />
+        <span className="-mb-2 text-sm text-paper-500">&#10005;</span>
+        <span className="h-px flex-1 bg-paper-400/70" />
       </div>
       {hasInk ? null : (
         <span
           aria-hidden
-          className="pointer-events-none absolute inset-x-0 bottom-3 text-center font-hand text-2xl text-foreground-subtle/70"
+          className="pointer-events-none absolute inset-x-0 bottom-3 text-center font-hand text-2xl text-paper-500"
         >
           Sign above the line
         </span>

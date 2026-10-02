@@ -1,14 +1,18 @@
 "use client";
 
 import { ImageUp } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import type { SignatureImage } from "@/lib/signature/image";
-import { cn } from "@/lib/utils";
+import { cn, pngDataUrl } from "@/lib/utils";
 
-/** Transparency has to be visible, or a photo that kept its paper looks fine until it is placed. */
+/**
+ * Transparency has to be visible, or a photo that kept its paper looks fine until it is placed.
+ * Light in both themes: the ink being checked is dark and ends up on a white page.
+ */
 const CHECKERBOARD = {
-  backgroundImage: "repeating-conic-gradient(var(--surface-hover) 0% 25%, var(--surface) 0% 50%)",
+  backgroundImage:
+    "repeating-conic-gradient(var(--color-paper-300) 0% 25%, var(--color-paper-100) 0% 50%)",
   backgroundSize: "14px 14px",
 };
 
@@ -23,17 +27,7 @@ export function SignatureUpload({ image, busy, onPick }: SignatureUploadProps) {
   const depth = useRef(0);
   const [dragging, setDragging] = useState(false);
 
-  const href = useMemo(
-    () =>
-      image === null
-        ? null
-        : URL.createObjectURL(new Blob([image.png as BlobPart], { type: "image/png" })),
-    [image],
-  );
-  useEffect(() => {
-    if (href === null) return;
-    return () => URL.revokeObjectURL(href);
-  }, [href]);
+  const href = useMemo(() => (image === null ? null : pngDataUrl(image.png)), [image]);
 
   const stopDragging = () => {
     depth.current = 0;
@@ -107,7 +101,7 @@ export function SignatureUpload({ image, busy, onPick }: SignatureUploadProps) {
           <Button
             variant="secondary"
             size="sm"
-            className="relative h-7 px-2.5 text-xs"
+            className="absolute bottom-3 right-3 h-7 px-2.5 text-xs"
             disabled={busy}
             onClick={() => inputRef.current?.click()}
           >

@@ -24,6 +24,20 @@ export function formatBytes(n: number): string {
 export const isPdfFile = (file: File): boolean =>
   file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
 
+/**
+ * PNG bytes as a `data:` URL. An object URL would be cheaper, but it has to be revoked, and a
+ * revoke from React's double-invoked development effects outlives the `useMemo` that made it,
+ * leaving a broken image behind. A data URL has no lifetime to get wrong.
+ */
+export function pngDataUrl(png: Uint8Array): string {
+  const CHUNK = 0x8000;
+  let binary = "";
+  for (let i = 0; i < png.length; i += CHUNK) {
+    binary += String.fromCharCode(...png.subarray(i, i + CHUNK));
+  }
+  return `data:image/png;base64,${btoa(binary)}`;
+}
+
 export function downloadBytes(bytes: Uint8Array, filename: string) {
   // `Uint8Array` is generic over ArrayBufferLike, which TS will not narrow to
   // BlobPart (it could be SharedArrayBuffer-backed); ours never is.

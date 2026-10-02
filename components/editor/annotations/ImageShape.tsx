@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, type PointerEvent } from "react";
+import { useMemo, type PointerEvent } from "react";
 import type { ImageAnnotation } from "@/lib/annotations/types";
+import { pngDataUrl } from "@/lib/utils";
 
 interface ImageShapeProps {
   a: ImageAnnotation;
@@ -11,11 +12,7 @@ interface ImageShapeProps {
 
 /** Images are drawn top-down, so the flipped page matrix is undone around the image's own box. */
 export function ImageShape({ a, interactive, onPointerDown }: ImageShapeProps) {
-  const href = useMemo(
-    () => URL.createObjectURL(new Blob([a.png as BlobPart], { type: "image/png" })),
-    [a.png],
-  );
-  useEffect(() => () => URL.revokeObjectURL(href), [href]);
+  const href = useMemo(() => pngDataUrl(a.png), [a.png]);
 
   return (
     <g

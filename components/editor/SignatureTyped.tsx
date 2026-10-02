@@ -17,16 +17,17 @@ export function SignatureTyped({ text, color, onTextChange }: SignatureTypedProp
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="relative h-48 overflow-hidden rounded-lg border border-border-strong bg-paper-50 dark:bg-paper-900">
+      {/* Paper-toned in both themes, like the pad: this is the page the ink will land on. */}
+      <div className="relative h-48 overflow-hidden rounded-lg border border-border-strong bg-paper-50">
         <div
           aria-hidden
           className="pointer-events-none absolute inset-x-8 bottom-12 flex items-end gap-2"
         >
-          <span className="-mb-2 text-sm text-foreground-subtle">&#10005;</span>
-          <span className="h-px flex-1 bg-border-strong/60" />
+          <span className="-mb-2 text-sm text-paper-500">&#10005;</span>
+          <span className="h-px flex-1 bg-paper-400/70" />
         </div>
         {trimmed === "" ? (
-          <span className="absolute inset-0 flex items-center justify-center font-hand text-3xl text-foreground-subtle/70">
+          <span className="absolute inset-0 flex items-center justify-center font-hand text-3xl text-paper-500">
             Your name, in your hand
           </span>
         ) : (

@@ -63,26 +63,31 @@ const base64 = (buffer: ArrayBuffer): string => {
   return btoa(binary);
 };
 
-/** The hand font's own `@font-face`, preferring the basic-latin subset a name is written in. */
+/** Chromium prints the basic-latin subset's range as `U+0-FF`, Firefox as `U+0000-00FF`. */
+const BASIC_LATIN = /^u\+0+(?:-0*ff)?(?:,|$)/;
+
+const coversLatin = (rule: CSSFontFaceRule): boolean =>
+  BASIC_LATIN.test(rule.style.getPropertyValue("unicode-range").toLowerCase().replace(/\s/g, ""));
+
+/** The hand font's own `@font-face`, preferring the latin subset a name is written in. */
 function handFontUrl(): string | null {
-  const faces: CSSFontFaceRule[] = [];
+  const faces: { rule: CSSFontFaceRule; base: string }[] = [];
   for (const sheet of Array.from(document.styleSheets)) {
     try {
       for (const rule of Array.from(sheet.cssRules)) {
-        if (rule instanceof CSSFontFaceRule && rule.style.fontFamily.includes("Caveat")) {
-          faces.push(rule);
+        if (rule instanceof CSSFontFaceRule && rule.style.fontFamily.includes(HAND_FAMILY)) {
+          faces.push({ rule, base: sheet.href ?? document.baseURI });
         }
       }
     } catch {
       // A cross-origin stylesheet hides its rules; ours are same-origin.
     }
   }
-  const latin =
-    faces.find((rule) =>
-      rule.style.getPropertyValue("unicode-range").toLowerCase().includes("u+0000"),
-    ) ?? faces[0];
-  const src = latin?.style.getPropertyValue("src") ?? "";
-  return /url\(["']?([^"')]+)["']?\)/.exec(src)?.[1] ?? null;
+  const face = faces.find(({ rule }) => coversLatin(rule)) ?? faces[0];
+  if (face === undefined) return null;
+  const url = /url\(["']?([^"')]+)["']?\)/.exec(face.rule.style.getPropertyValue("src"))?.[1];
+  // `src` keeps the url as it was authored: relative to its stylesheet, not to the page.
+  return url === undefined ? null : new URL(url, face.base).href;
 }
 
 let inlined: Promise<string> | null = null;

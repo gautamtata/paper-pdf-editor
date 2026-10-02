@@ -141,8 +141,9 @@ function SigningForm({ vault, onPlace, onDone }: SigningFormProps) {
         </div>
 
         {/* Mounted even while another tab shows, so a half-drawn signature survives a look at
-            the other two: the pad repaints from its own strokes when it comes back. */}
-        <TabsContent value="draw" forceMount>
+            the other two: the pad repaints from its own strokes when it comes back. Radix leaves
+            a force-mounted panel visible, so this one hides itself. */}
+        <TabsContent value="draw" forceMount className="data-[state=inactive]:hidden">
           <SignaturePad ref={pad} color={color} onInkChange={setHasInk} />
         </TabsContent>
         <TabsContent value="type">

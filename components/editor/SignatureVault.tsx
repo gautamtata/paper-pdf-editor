@@ -1,8 +1,9 @@
 "use client";
 
 import { X } from "lucide-react";
-import { useEffect, useMemo } from "react";
+import { useMemo } from "react";
 import type { StoredSignature } from "@/lib/storage/repo";
+import { pngDataUrl } from "@/lib/utils";
 
 interface SignatureVaultProps {
   signatures: StoredSignature[];
@@ -22,11 +23,7 @@ function SignatureChip({
   onPick(): void;
   onDelete(): void;
 }) {
-  const href = useMemo(
-    () => URL.createObjectURL(new Blob([signature.png as BlobPart], { type: "image/png" })),
-    [signature.png],
-  );
-  useEffect(() => () => URL.revokeObjectURL(href), [href]);
+  const href = useMemo(() => pngDataUrl(signature.png), [signature.png]);
 
   return (
     <div className="group relative shrink-0">
@@ -36,7 +33,7 @@ function SignatureChip({
         onClick={onPick}
         title={`Place ${signature.name}`}
         data-testid="saved-signature"
-        className="flex h-14 w-28 items-center justify-center rounded-md border border-border bg-paper-50 px-2 transition-colors hover:border-accent disabled:opacity-50 dark:bg-paper-900"
+        className="flex h-14 w-28 items-center justify-center rounded-md border border-border bg-paper-50 px-2 transition-colors hover:border-accent disabled:opacity-50"
       >
         {/* eslint-disable-next-line @next/next/no-img-element -- a blob URL, not an asset */}
         <img src={href} alt={signature.name} className="max-h-10 max-w-full object-contain" />
