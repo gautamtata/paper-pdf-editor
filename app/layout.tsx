@@ -33,6 +33,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <Toaster
           position="bottom-center"
           gap={8}
+          // Clear of the editor's floating toolbar.
+          offset={{ bottom: 84 }}
           toastOptions={{
             classNames: {
               toast:

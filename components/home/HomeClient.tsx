@@ -1,33 +1,10 @@
 "use client";
 
-import { TriangleAlert } from "lucide-react";
-import { useCallback, useSyncExternalStore } from "react";
+import { useCallback } from "react";
 import { DropZone } from "@/components/home/DropZone";
 import { RecentList } from "@/components/home/RecentList";
 import { useOpenFiles } from "@/components/home/useOpenFiles";
-import { repo } from "@/lib/storage/repo";
-
-/** Server-rendered as "not full": the quota is only known in the browser. */
-const neverOnServer = () => false;
-
-function StorageBanner() {
-  const memoryOnly = useSyncExternalStore(
-    repo.onModeChange,
-    repo.isMemoryOnly,
-    neverOnServer,
-  );
-
-  if (!memoryOnly) return null;
-  return (
-    <p
-      role="status"
-      className="flex items-center justify-center gap-2 border-b border-border bg-surface-raised px-6 py-2 text-xs text-foreground-muted"
-    >
-      <TriangleAlert className="size-3.5 shrink-0 text-danger" aria-hidden />
-      Storage is full — changes will be lost when you close this tab
-    </p>
-  );
-}
+import { StorageBanner } from "@/components/StorageBanner";
 
 export function HomeClient() {
   const { open, busy } = useOpenFiles();
