@@ -1,6 +1,7 @@
 "use client";
 
-import { pageBox, totalRotation } from "@/components/editor/geometry";
+import { AnnotationLayer } from "@/components/editor/AnnotationLayer";
+import { pageBox, pageTransform, totalRotation } from "@/components/editor/geometry";
 import { usePageCanvas } from "@/components/editor/usePageCanvas";
 import type { SourceDoc, VirtualPage } from "@/lib/pdf/types";
 import { cn } from "@/lib/utils";
@@ -29,6 +30,7 @@ export function PageView({
   onSelect,
 }: PageViewProps) {
   const box = pageBox(page, source, displayScale);
+  const transform = pageTransform(page, source, displayScale);
   const width = Math.round(box.width);
   const height = Math.round(box.height);
   const { canvasRef, painted } = usePageCanvas({
@@ -60,8 +62,7 @@ export function PageView({
             className={cn("block transition-opacity", painted ? "opacity-100" : "opacity-0")}
           />
         )}
-        {/* Task 11 mounts the annotation layer here, over the canvas and in the same box. */}
-        <div data-slot="annotation-layer" className="absolute inset-0" />
+        <AnnotationLayer page={page} transform={transform} width={width} height={height} />
       </div>
       <span className="mt-2 mb-1 text-[0.6875rem] tabular-nums text-foreground-subtle">
         {index + 1}
