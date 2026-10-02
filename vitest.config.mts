@@ -14,5 +14,11 @@ export default defineConfig({
     ],
     setupFiles: ["./test/setup.ts"],
   },
-  resolve: { alias: { "@": path.resolve(import.meta.dirname, ".") } },
+  resolve: {
+    alias: {
+      "@": path.resolve(import.meta.dirname, "."),
+      // The modern pdf.js build needs newer JS built-ins than Node 22 ships.
+      "pdfjs-dist": "pdfjs-dist/legacy/build/pdf.mjs",
+    },
+  },
 });
