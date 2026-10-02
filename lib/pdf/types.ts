@@ -69,7 +69,7 @@ export function pagesFromSource(src: SourceDoc): VirtualPage[] {
     sourceId: src.id,
     sourceIndex,
     rotation: Rotation.R0,
-    size: page.size,
+    size: { ...page.size },
     annotations: [],
   }));
 }

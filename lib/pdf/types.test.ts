@@ -1,5 +1,12 @@
 import { describe, expect, it } from "vitest";
-import { addRotation, newId, normalizeRotation, Rotation } from "@/lib/pdf/types";
+import {
+  addRotation,
+  newId,
+  normalizeRotation,
+  pagesFromSource,
+  Rotation,
+  type SourceDoc,
+} from "@/lib/pdf/types";
 
 describe("normalizeRotation", () => {
   it("keeps canonical angles", () => {
@@ -33,5 +40,21 @@ describe("newId", () => {
     const ids = new Set(Array.from({ length: 100 }, newId));
     expect(ids.size).toBe(100);
     expect([...ids].every((id) => id.length === 10)).toBe(true);
+  });
+});
+
+describe("pagesFromSource", () => {
+  it("copies sizes so editing a page cannot mutate its source", () => {
+    const src: SourceDoc = {
+      id: "s1",
+      name: "a.pdf",
+      bytes: new Uint8Array(),
+      pageCount: 1,
+      pages: [{ size: { w: 400, h: 600 }, rotation: Rotation.R90 }],
+    };
+    const [page] = pagesFromSource(src);
+    page.size.w = 1;
+    expect(src.pages[0].size.w).toBe(400);
+    expect(page.rotation).toBe(Rotation.R0);
   });
 });
