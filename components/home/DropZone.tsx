@@ -10,6 +10,16 @@ import { isPdfFile } from "@/lib/utils";
 const ease = [0.22, 1, 0.36, 1] as const;
 const transition = { duration: 0.15, ease };
 
+/**
+ * The single place picked files are filtered: one warning per gesture, however many
+ * non-PDFs it carried, so `useOpenFiles` can trust everything it is handed.
+ */
+const pdfsFrom = (files: File[]): File[] => {
+  const pdfs = files.filter(isPdfFile);
+  if (pdfs.length < files.length) toast.error("Only PDF files are supported");
+  return pdfs;
+};
+
 interface DropZoneProps {
   onFiles: (files: File[]) => void;
   busy?: boolean;
@@ -27,7 +37,7 @@ export function DropZone({ onFiles, busy = false }: DropZoneProps) {
       const files = Array.from(e.clipboardData?.files ?? []);
       if (files.length === 0) return;
       e.preventDefault();
-      onFiles(files.filter(isPdfFile));
+      onFiles(pdfsFrom(files));
     };
     document.addEventListener("paste", onPaste);
     return () => document.removeEventListener("paste", onPaste);
@@ -62,12 +72,7 @@ export function DropZone({ onFiles, busy = false }: DropZoneProps) {
         onDrop={(e) => {
           e.preventDefault();
           stopDragging();
-          const files = Array.from(e.dataTransfer?.files ?? []);
-          const pdfs = files.filter(isPdfFile);
-          if (files.length > 0 && pdfs.length === 0) {
-            toast.error("Only PDF files are supported");
-          }
-          onFiles(pdfs);
+          onFiles(pdfsFrom(Array.from(e.dataTransfer?.files ?? [])));
         }}
       >
         <motion.span
@@ -110,7 +115,8 @@ export function DropZone({ onFiles, busy = false }: DropZoneProps) {
           multiple
           className="hidden"
           onChange={(e) => {
-            onFiles(Array.from(e.target.files ?? []));
+            // `accept` is only a hint; the picker can still return other types.
+            onFiles(pdfsFrom(Array.from(e.target.files ?? [])));
             e.target.value = "";
           }}
         />

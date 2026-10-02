@@ -1,13 +1,12 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { toast } from "sonner";
 import { PdfLoadError, loadSource } from "@/lib/pdf/load";
 import type { SourceDoc } from "@/lib/pdf/types";
 import { repo } from "@/lib/storage/repo";
 import { workspaceStore } from "@/lib/store/workspace";
-import { isPdfFile } from "@/lib/utils";
 
 /** Names the workspace after the documents that actually opened. */
 export const nameFrom = (names: string[]): string => {
@@ -20,21 +19,23 @@ export interface OpenFiles {
   busy: boolean;
 }
 
-/** Turns picked files into a saved workspace and opens its editor. */
+/** Turns picked PDFs (already filtered by the drop zone) into a saved workspace and opens it. */
 export function useOpenFiles(): OpenFiles {
   const router = useRouter();
   const [busy, setBusy] = useState(false);
+  // A ref, not `busy`: a second drop arriving in the same tick would still see
+  // the stale state and create a second workspace.
+  const running = useRef(false);
 
   const open = useCallback(
     async (files: File[]): Promise<void> => {
-      const pdfs = files.filter(isPdfFile);
-      if (pdfs.length < files.length) toast.error("Only PDF files are supported");
-      if (pdfs.length === 0) return;
+      if (files.length === 0 || running.current) return;
+      running.current = true;
 
       setBusy(true);
       try {
         const sources: SourceDoc[] = [];
-        for (const file of pdfs) {
+        for (const file of files) {
           try {
             const bytes = new Uint8Array(await file.arrayBuffer());
             sources.push(await loadSource(file.name, bytes));
@@ -59,6 +60,7 @@ export function useOpenFiles(): OpenFiles {
         }
         router.push(`/edit/${ws.id}`);
       } finally {
+        running.current = false;
         setBusy(false);
       }
     },
