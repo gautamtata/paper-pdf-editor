@@ -18,24 +18,27 @@ export class PdfLoadError extends Error {
 
 /** Parses `bytes` into a `SourceDoc`, or throws `PdfLoadError`. */
 export async function loadSource(name: string, bytes: Uint8Array): Promise<SourceDoc> {
-  let doc: PDFDocument;
+  let pages: SourcePageInfo[];
   try {
     // We detect encryption via `isEncrypted` rather than catching pdf-lib's
     // EncryptedPDFError: its error classes are downlevelled to ES5, which
     // breaks their prototype chain, so `instanceof` never matches.
-    doc = await PDFDocument.load(bytes, { updateMetadata: false, ignoreEncryption: true });
-  } catch {
+    const doc = await PDFDocument.load(bytes, { updateMetadata: false, ignoreEncryption: true });
+    if (doc.isEncrypted) throw new PdfLoadError("encrypted", name);
+
+    // Inside the try: pdf-lib resolves MediaBox and Rotate lazily, so a
+    // document that loads can still throw raw assertion errors here.
+    pages = doc.getPages().map((page) => {
+      const { width, height } = page.getSize();
+      return {
+        size: { w: width, h: height },
+        rotation: normalizeRotation(page.getRotation().angle),
+      };
+    });
+  } catch (err) {
+    if (err instanceof PdfLoadError) throw err;
     throw new PdfLoadError("malformed", name);
   }
-  if (doc.isEncrypted) throw new PdfLoadError("encrypted", name);
-
-  const pages: SourcePageInfo[] = doc.getPages().map((page) => {
-    const { width, height } = page.getSize();
-    return {
-      size: { w: width, h: height },
-      rotation: normalizeRotation(page.getRotation().angle),
-    };
-  });
 
   return { id: newId(), name, bytes, pageCount: pages.length, pages };
 }

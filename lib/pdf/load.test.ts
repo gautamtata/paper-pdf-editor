@@ -1,4 +1,11 @@
-import { decodePDFRawStream, degrees, PDFArray, PDFDocument, PDFRawStream } from "pdf-lib";
+import {
+  decodePDFRawStream,
+  degrees,
+  PDFArray,
+  PDFDocument,
+  PDFName,
+  PDFRawStream,
+} from "pdf-lib";
 import { describe, expect, it } from "vitest";
 import { loadSource, PdfLoadError } from "@/lib/pdf/load";
 import { pagesFromSource, Rotation } from "@/lib/pdf/types";
@@ -30,6 +37,21 @@ describe("loadSource", () => {
       reason: "encrypted",
       fileName: "e.pdf",
     });
+  });
+
+  it("reports a document that parses but has unreadable page geometry", async () => {
+    // pdf-lib resolves MediaBox and Rotate lazily, with type assertions that
+    // throw well after `load` has returned.
+    const noBox = await PDFDocument.create();
+    noBox.addPage([400, 600]).node.delete(PDFName.of("MediaBox"));
+    await expect(loadSource("b.pdf", await noBox.save())).rejects.toMatchObject({
+      reason: "malformed",
+      fileName: "b.pdf",
+    });
+
+    const badRotate = await PDFDocument.create();
+    badRotate.addPage([400, 600]).node.set(PDFName.of("Rotate"), PDFName.of("Bogus"));
+    await expect(loadSource("r.pdf", await badRotate.save())).rejects.toBeInstanceOf(PdfLoadError);
   });
 
   it("rejects garbage", async () => {
