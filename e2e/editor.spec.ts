@@ -13,6 +13,18 @@ const pdfFile = (name: string, bytes: Uint8Array) => ({
   buffer: Buffer.from(bytes),
 });
 
+/** Chromium reports a blocked load as a console error naming the policy; any one fails the test. */
+const cspViolations: string[] = [];
+test.beforeEach(({ page }) => {
+  cspViolations.length = 0;
+  page.on("console", (message) => {
+    if (/Content Security Policy/i.test(message.text())) cspViolations.push(message.text());
+  });
+});
+test.afterEach(() => {
+  expect(cspViolations).toEqual([]);
+});
+
 /** Drops two 5-page PDFs on the home screen, which merges them into one open document. */
 async function openTwoDocuments(page: Page): Promise<void> {
   const [a, b] = await Promise.all([makePdf(5, "a"), makePdf(5, "b")]);
@@ -38,6 +50,17 @@ async function viewFirstPage(page: Page): Promise<void> {
 
 async function drawAndPlaceSignature(page: Page): Promise<void> {
   await page.keyboard.press("s");
+  await expect(page.getByTestId("signature-pad")).toBeVisible();
+
+  // Typing a name first exercises the handwriting font, which the CSP must let load.
+  await page.getByTestId("signature-tab-type").click();
+  await page.getByLabel("Name to sign with").fill("Ada Lovelace");
+  await expect(page.getByRole("img", { name: "Signature preview: Ada Lovelace" })).toBeVisible();
+  await expect
+    .poll(() => page.evaluate(() => document.fonts.check("24px 'Caveat Variable'")))
+    .toBe(true);
+
+  await page.getByTestId("signature-tab-draw").click();
   const pad = page.getByTestId("signature-pad");
   await expect(pad).toBeVisible();
   const box = await pad.boundingBox();
@@ -74,6 +97,40 @@ test("merges two PDFs, deletes two pages, signs, and exports the eight that are 
   // The signature was placed on the first page, so that page alone gained an image XObject.
   const xobjects = out.getPage(0).node.Resources()?.lookup(PDFName.of("XObject"));
   expect(xobjects?.toString()).toContain("Image");
+});
+
+/** The cards' page ids, in rail order. */
+const railOrder = (page: Page): Promise<(string | null)[]> =>
+  page.getByTestId("thumbnail").evaluateAll((cards) => cards.map((c) => c.getAttribute("data-page-card")));
+
+test("reorders a page from the keyboard and exports in the new order", async ({ page }) => {
+  await openTwoDocuments(page);
+  const before = await railOrder(page);
+
+  // dnd-kit's keyboard sensor: Space lifts the focused card, an arrow moves it, Space drops it.
+  // Each step is awaited through dnd-kit's own announcements. The sensor attaches its key
+  // listener on a timer after the lift, so the arrow is pressed again until it is heard; with
+  // two columns there is nothing further right, so an extra press moves nothing.
+  const announcements = page.getByRole("status");
+  await page.getByTestId("thumbnail").first().focus();
+  await page.keyboard.press("Space");
+  await expect(announcements).toContainText(`was moved over droppable area ${before[0]}`);
+  await expect(async () => {
+    await page.keyboard.press("ArrowRight");
+    await expect(announcements).toContainText(`was moved over droppable area ${before[1]}`, {
+      timeout: 500,
+    });
+  }).toPass({ timeout: 10_000 });
+  await page.keyboard.press("Space");
+  await expect
+    .poll(() => railOrder(page))
+    .toEqual([before[1], before[0], ...before.slice(2)]);
+
+  const pending = page.waitForEvent("download");
+  await page.keyboard.press(`${MOD}+e`);
+  const download = await pending;
+  const out = await PDFDocument.load(await readFile(await download.path()));
+  expect(out.getPages().map((p) => p.getWidth())).toEqual([401, 400, 402, 403, 404, 400, 401, 402, 403, 404]);
 });
 
 test("keeps the edited document after a reload", async ({ page }) => {
