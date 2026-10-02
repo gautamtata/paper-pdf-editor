@@ -1,12 +1,13 @@
-import { PDFDocument } from "pdf-lib";
+import { PDFDict, PDFDocument, PDFName } from "pdf-lib";
 import { describe, expect, it } from "vitest";
 import { createImage, createRect } from "@/lib/annotations/types";
 import { exportWorkspace } from "@/lib/pdf/export";
 import { loadSource } from "@/lib/pdf/load";
-import { deletePages, insertBlank, movePages } from "@/lib/pdf/ops";
+import { deletePages, duplicatePages, insertBlank, movePages } from "@/lib/pdf/ops";
 import { pagesFromSource, Rotation, type SourceDoc, type Workspace } from "@/lib/pdf/types";
 import {
   GARBAGE,
+  makeCroppedPdf,
   makeOffsetPdf,
   makePdf,
   makeRotatedPdf,
@@ -105,6 +106,15 @@ describe("exportWorkspace", () => {
     expect(ops).toContain("100 0 0 50 0 0 cm");
   });
 
+  it("offsets drawings by the CropBox origin, the box the page is displayed in", async () => {
+    const src = await loadSource("crop.pdf", await makeCroppedPdf());
+    const ws = wsOf(src);
+    expect(ws.pages[0].size).toEqual({ w: 300, h: 500 });
+    ws.pages[0].annotations = [createImage({ x: 10, y: 10, w: 100, h: 50 }, TINY_PNG, 2)];
+    const out = await PDFDocument.load(await exportWorkspace(ws));
+    expect(pageContent(out, 0)).toContain("1 0 0 1 60 60 cm");
+  });
+
   it("rejects with the source name when a source cannot be read", async () => {
     const good = await loadSource("good.pdf", await makePdf(1));
     const ws = wsOf(good, { ...good, id: "bad", name: "bad.pdf", bytes: GARBAGE });
@@ -126,5 +136,37 @@ describe("exportWorkspace", () => {
     const out = await PDFDocument.load(await exportWorkspace(ws));
     expect(performance.now() - started).toBeLessThan(5000);
     expect(out.getPageCount()).toBe(200);
+  });
+});
+
+describe("exportWorkspace shares resources per source", () => {
+  const fontObjects = (doc: PDFDocument): number =>
+    doc.context
+      .enumerateIndirectObjects()
+      .filter(([, obj]) => obj instanceof PDFDict && obj.get(PDFName.of("Type")) === PDFName.of("Font"))
+      .length;
+
+  it("embeds a source's shared font once however many of its pages are exported", async () => {
+    const ws = await wsFrom(["a", 5]);
+    const out = await PDFDocument.load(await exportWorkspace(ws), { updateMetadata: false });
+    // The source's Helvetica plus the one the exporter embeds for text annotations.
+    expect(fontObjects(out)).toBe(2);
+    const one = await exportWorkspace({ ...ws, pages: ws.pages.slice(0, 1) });
+    const five = await exportWorkspace(ws);
+    expect(five.byteLength).toBeLessThan(one.byteLength * 2);
+  });
+
+  it("gives a duplicated page its own content so annotations stay apart", async () => {
+    const ws = await wsFrom(["a", 2]);
+    ws.pages = duplicatePages(ws.pages, [ws.pages[0].id]);
+    ws.pages[0].annotations = [createRect({ x: 10, y: 20, w: 100, h: 50 })];
+    ws.pages[1].rotation = Rotation.R90;
+    const out = await PDFDocument.load(await exportWorkspace(ws));
+    expect(widths(out)).toEqual([400, 400, 401]);
+    expect(out.getPages().map((p) => p.getRotation().angle)).toEqual([0, 90, 0]);
+    expect(pageContent(out, 0)).toContain("100 50 l");
+    expect(pageContent(out, 1)).not.toContain("100 50 l");
+    expect(pageContent(out, 1)).toContain("Tj");
+    expect(fontObjects(out)).toBe(2);
   });
 });

@@ -10,7 +10,7 @@ import {
   type Workspace,
 } from "@/lib/pdf/types";
 
-export { makeOffsetPdf, makePdf, makeRotatedPdf } from "@/test/pdf-fixtures";
+export { makeCroppedPdf, makeOffsetPdf, makePdf, makeRotatedPdf } from "@/test/pdf-fixtures";
 
 const fixtureDir = path.join(path.dirname(fileURLToPath(import.meta.url)), "fixtures");
 
@@ -31,6 +31,7 @@ export function makeWorkspace(pageCount: number, name = "doc"): Workspace {
     pageCount,
     pages: Array.from({ length: pageCount }, (_, i) => ({
       size: { w: 400 + i, h: 600 },
+      origin: { x: 0, y: 0 },
       rotation: 0 as Rotation,
     })),
   };

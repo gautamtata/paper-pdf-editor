@@ -6,18 +6,20 @@ import {
   clearRenderCache,
   getViewportSize,
   getViewportTransform,
+  removeSource,
   renderPage,
   type Rendered,
   type RenderRequest,
 } from "@/lib/render/renderer";
+import { applyMatrix } from "@/lib/annotations/geometry";
 import { addRotation, Rotation, type SourceDoc } from "@/lib/pdf/types";
-import { makePdf, makeRotatedPdf } from "@/test/fixtures";
+import { GARBAGE, makeCroppedPdf, makePdf, makeRotatedPdf } from "@/test/fixtures";
 
 const ROTATIONS = [Rotation.R0, Rotation.R90, Rotation.R180, Rotation.R270];
 const SIZE = { w: 400, h: 600 };
 
 function source(id: string, bytes: Uint8Array, rotation = Rotation.R0): SourceDoc {
-  return { id, name: `${id}.pdf`, bytes, pageCount: 1, pages: [{ size: SIZE, rotation }] };
+  return { id, name: `${id}.pdf`, bytes, pageCount: 1, pages: [{ size: SIZE, origin: { x: 0, y: 0 }, rotation }] };
 }
 
 const stub = (): Rendered => ({
@@ -62,6 +64,41 @@ describe("getViewportTransform", () => {
       expect(getViewportTransform(SIZE, Rotation.R90, virtual, 2)).toEqual(
         page.getViewport({ scale: 2, rotation: total }).transform,
       );
+    }
+    releaseSource(src.id);
+  });
+});
+
+describe("getViewportTransform on a cropped page", () => {
+  it("maps box space onto pdf.js's user-space transform shifted by the CropBox origin", async () => {
+    const size = { w: 300, h: 500 };
+    const origin = { x: 50, y: 50 };
+    const src: SourceDoc = {
+      id: "crop",
+      name: "crop.pdf",
+      bytes: await makeCroppedPdf(),
+      pageCount: 1,
+      pages: [{ size, origin, rotation: Rotation.R0 }],
+    };
+    const page = await (await getSourceDocument(src)).getPage(1);
+    expect(page.view).toEqual([50, 50, 350, 550]);
+    for (const rotation of ROTATIONS) {
+      const viewport = page.getViewport({ scale: 1.5, rotation });
+      const ours = getViewportTransform(size, Rotation.R0, rotation, 1.5);
+      expect(getViewportSize(size, Rotation.R0, rotation, 1.5)).toEqual({
+        width: viewport.width,
+        height: viewport.height,
+      });
+      for (const [bx, by] of [
+        [0, 0],
+        [300, 500],
+        [10, 10],
+      ]) {
+        const expected = viewport.convertToViewportPoint(bx + origin.x, by + origin.y);
+        const [x, y] = applyMatrix(ours, bx, by);
+        expect(x).toBeCloseTo(expected[0]);
+        expect(y).toBeCloseTo(expected[1]);
+      }
     }
     releaseSource(src.id);
   });
@@ -200,5 +237,36 @@ describe("renderPage cache", () => {
     release();
     await again;
     expect(draws).toBe(4);
+  });
+});
+
+describe("source documents", () => {
+  it("forgets a document that failed to open, so a retry can succeed", async () => {
+    const bad = source("flaky", GARBAGE);
+    await expect(getSourceDocument(bad)).rejects.toBeDefined();
+    const good = source("flaky", await makePdf(1));
+    expect((await getSourceDocument(good)).numPages).toBe(1);
+    releaseSource("flaky");
+  });
+
+  it("removeSource drops the document and every bitmap rendered from it", async () => {
+    let draws = 0;
+    _setDrawForTests(async () => {
+      draws++;
+      return stub();
+    });
+    const req: RenderRequest = {
+      source: source("gone", new Uint8Array()),
+      pageIndex: 0,
+      rotation: Rotation.R0,
+      scale: 1,
+    };
+    const other: RenderRequest = { ...req, source: source("kept", new Uint8Array()) };
+    await renderPage(req);
+    await renderPage(other);
+    removeSource("gone");
+    await renderPage(req);
+    await renderPage(other);
+    expect(draws).toBe(3);
   });
 });

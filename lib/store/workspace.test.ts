@@ -16,6 +16,7 @@ const srcDoc = (id: string, pageCount: number): SourceDoc => ({
   pageCount,
   pages: Array.from({ length: pageCount }, () => ({
     size: { w: 400, h: 600 },
+    origin: { x: 0, y: 0 },
     rotation: Rotation.R0,
   })),
 });

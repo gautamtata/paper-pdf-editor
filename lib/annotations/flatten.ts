@@ -7,6 +7,7 @@ import {
   type PDFPage,
 } from "pdf-lib";
 import { strokeToPath } from "@/lib/annotations/ink";
+import { displayBox } from "@/lib/pdf/box";
 import {
   AnnotationKind,
   type Annotation,
@@ -26,7 +27,7 @@ export interface FlattenContext {
   imageCache: Map<string, PDFImage>;
 }
 
-/** The page's MediaBox; `x`/`y` offset every drawing so (0,0) means the box's corner. */
+/** The page's display box; `x`/`y` offset every drawing so (0,0) means the box's corner. */
 interface Box {
   x: number;
   y: number;
@@ -103,13 +104,13 @@ function drawInk(page: PDFPage, a: InkAnnotation, box: Box): void {
   }
 }
 
-/** Draws `annotations` into the page's content stream, in PDF user space of the unrotated page. */
+/** Draws `annotations` into the page's content stream; annotation space is the unrotated display box. */
 export async function flattenAnnotations(
   page: PDFPage,
   annotations: Annotation[],
   ctx: FlattenContext,
 ): Promise<void> {
-  const box = page.getMediaBox();
+  const box = displayBox(page);
   for (const a of annotations) {
     switch (a.kind) {
       case AnnotationKind.Text:

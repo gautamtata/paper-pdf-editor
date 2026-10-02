@@ -20,8 +20,10 @@ export interface PageSize {
 }
 
 export interface SourcePageInfo {
-  /** MediaBox size, not adjusted for rotation. */
+  /** Size of the displayed box (CropBox clipped to MediaBox), not adjusted for rotation. */
   size: PageSize;
+  /** Bottom-left corner of that box in PDF user space: the origin of annotation space. */
+  origin: { x: number; y: number };
   /** The source page's intrinsic `/Rotate`. */
   rotation: Rotation;
 }

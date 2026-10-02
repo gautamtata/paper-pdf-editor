@@ -2,7 +2,7 @@ import { degrees, PDFDocument, PDFName } from "pdf-lib";
 import { describe, expect, it } from "vitest";
 import { loadSource, PdfLoadError } from "@/lib/pdf/load";
 import { pagesFromSource, Rotation } from "@/lib/pdf/types";
-import { GARBAGE, makeEncryptedPdf, makePdf, pageContent } from "@/test/fixtures";
+import { GARBAGE, makeCroppedPdf, makeEncryptedPdf, makePdf, pageContent } from "@/test/fixtures";
 
 describe("loadSource", () => {
   it("parses page count and sizes", async () => {
@@ -90,5 +90,21 @@ describe("makePdf", () => {
     expect(pageContent(doc, 0)).toContain(`${hexLiteral("mine-p0")} Tj`);
     expect(pageContent(doc, 1)).toContain(`${hexLiteral("mine-p1")} Tj`);
     expect(pageContent(doc, 0)).toContain("1 0 0 1 40 560 Tm");
+  });
+});
+
+describe("loadSource with a CropBox", () => {
+  it("sizes the page by the CropBox clipped to the MediaBox and records its origin", async () => {
+    const src = await loadSource("c.pdf", await makeCroppedPdf());
+    expect(src.pages[0].size).toEqual({ w: 300, h: 500 });
+    expect(src.pages[0].origin).toEqual({ x: 50, y: 50 });
+  });
+
+  it("falls back to the MediaBox when the CropBox lies outside it", async () => {
+    const doc = await PDFDocument.create();
+    doc.addPage([400, 600]).setCropBox(1000, 1000, 10, 10);
+    const src = await loadSource("c.pdf", await doc.save());
+    expect(src.pages[0].size).toEqual({ w: 400, h: 600 });
+    expect(src.pages[0].origin).toEqual({ x: 0, y: 0 });
   });
 });

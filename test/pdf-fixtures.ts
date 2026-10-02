@@ -35,3 +35,10 @@ export async function makeOffsetPdf(): Promise<Uint8Array> {
   doc.addPage([400, 600]).setMediaBox(100, 100, 400, 600);
   return doc.save();
 }
+
+/** One 400x600 MediaBox page whose CropBox `[50 50 350 550]` shows a 300x500 window of it. */
+export async function makeCroppedPdf(): Promise<Uint8Array> {
+  const doc = await PDFDocument.create();
+  doc.addPage([400, 600]).setCropBox(50, 50, 300, 500);
+  return doc.save();
+}

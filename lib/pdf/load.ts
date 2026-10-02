@@ -1,4 +1,5 @@
 import { PDFDocument } from "pdf-lib";
+import { displayBox } from "@/lib/pdf/box";
 import { newId, normalizeRotation, type SourceDoc, type SourcePageInfo } from "@/lib/pdf/types";
 
 export type PdfLoadReason = "encrypted" | "malformed";
@@ -29,9 +30,10 @@ export async function loadSource(name: string, bytes: Uint8Array): Promise<Sourc
     // Inside the try: pdf-lib resolves MediaBox and Rotate lazily, so a
     // document that loads can still throw raw assertion errors here.
     pages = doc.getPages().map((page) => {
-      const { width, height } = page.getSize();
+      const { x, y, width, height } = displayBox(page);
       return {
         size: { w: width, h: height },
+        origin: { x, y },
         rotation: normalizeRotation(page.getRotation().angle),
       };
     });

@@ -50,7 +50,7 @@ describe("pagesFromSource", () => {
       name: "a.pdf",
       bytes: new Uint8Array(),
       pageCount: 1,
-      pages: [{ size: { w: 400, h: 600 }, rotation: Rotation.R90 }],
+      pages: [{ size: { w: 400, h: 600 }, origin: { x: 0, y: 0 }, rotation: Rotation.R90 }],
     };
     const [page] = pagesFromSource(src);
     page.size.w = 1;
