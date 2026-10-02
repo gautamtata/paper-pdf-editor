@@ -18,12 +18,6 @@
   --color-paper-900: oklch(0.238 0.011 66);
   --color-paper-950: oklch(0.164 0.009 64);
 
-  /* Ink blue: the single saturated colour in the product. */
-  --color-accent: oklch(0.45 0.12 260);
-  --color-accent-hover: oklch(0.4 0.125 260);
-  --color-accent-soft: oklch(0.93 0.03 260);
-  --color-accent-foreground: oklch(0.985 0.005 260);
-
   --color-danger: oklch(0.54 0.18 25);
   --color-danger-hover: oklch(0.48 0.185 25);
   --color-danger-foreground: oklch(0.985 0.004 25);
@@ -51,10 +45,18 @@
   --animate-pop-out: pop-out 120ms ease-in;
 }
 
-/* Annotation ink, shared by the highlight / draw / text tools. `static` because
-   the canvas layer reads these variables at runtime, so they must be emitted
-   even when no Tailwind utility references them. */
+/* `static` blocks are emitted whole. Tailwind prunes unused `@theme` variables
+   from `:root`, and both of these families are read from outside the utility
+   pipeline: the accent by the raw `:focus-visible` / `::selection` rules below,
+   the marker inks by the canvas layer at runtime. */
 @theme static {
+  /* Ink blue: the single saturated colour in the chrome. Light-mode values;
+     the dark block below lifts them (see the contrast note there). */
+  --color-accent: oklch(0.45 0.12 260);
+  --color-accent-hover: oklch(0.4 0.125 260);
+  --color-accent-soft: oklch(0.93 0.03 260);
+  --color-accent-foreground: oklch(0.985 0.005 260);
+
   --color-marker-yellow: oklch(0.91 0.16 95);
   --color-marker-green: oklch(0.86 0.15 150);
   --color-marker-blue: oklch(0.85 0.1 240);
@@ -131,6 +133,15 @@
     --border: oklch(0.29 0.011 66);
     --border-strong: oklch(0.37 0.013 68);
     --overlay: oklch(0.1 0.006 64 / 0.6);
+
+    /* The light accent is 1.80:1 against `surface-active` — below the 3:1 that
+       WCAG 2.2 SC 1.4.11 requires of the focus ring and the slider stroke. These
+       lift it to 5.03:1 worst-case across every dark surface. A near-white
+       accent-foreground only reaches 2.58:1 on the lifted fill, so it flips to
+       ink (7.10:1). */
+    --color-accent: oklch(0.7 0.145 260);
+    --color-accent-hover: oklch(0.76 0.12 260);
+    --color-accent-foreground: oklch(0.17 0.03 265);
 
     --shadow-soft-value: 0 1px 2px oklch(0 0 0 / 0.3);
     --shadow-raised-value: 0 1px 2px oklch(0 0 0 / 0.3),
