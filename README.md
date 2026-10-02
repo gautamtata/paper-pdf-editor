@@ -1,36 +1,41 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Paper
 
-## Getting Started
+Paper is a private, local-first PDF editor that runs entirely in your browser. Open one or more PDFs, rearrange and clean up their pages, annotate and sign them, and export a single flattened file. Nothing is ever uploaded, and no account is needed.
 
-First, run the development server:
+Production: https://paper-pdf-editor.vercel.app
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+## Privacy model
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+- Every operation (parsing, rendering, editing, signing, exporting) happens on your device in client-side JavaScript. The deployed app is static assets only: there are no route handlers, server actions, or upload endpoints.
+- The only persistence is your browser's IndexedDB: recent documents, the autosaved workspace, and the signature vault.
+- "Clear all local data" wipes everything Paper has stored and returns you to a clean slate.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## Features
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- Open and merge PDFs (drag-and-drop or file picker)
+- Delete, reorder, and rotate pages
+- Annotate with text, pen, highlight, and rectangle tools
+- Sign by drawing, typing, or uploading an image, with a local signature vault for reuse
+- Export a flattened PDF with all edits applied
+- Autosave and reload the workspace between sessions
 
-## Learn More
+## Scripts
 
-To learn more about Next.js, take a look at the following resources:
+Paper uses [Bun](https://bun.sh). Install dependencies with `bun install`; a `postinstall` hook copies the pdf.js worker into `public/`.
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+| Script              | What it does                             |
+| ------------------- | ---------------------------------------- |
+| `bun run dev`       | Start the Next.js dev server             |
+| `bun run build`     | Production build                         |
+| `bun run test`      | Unit tests (Vitest)                      |
+| `bun run e2e`       | End-to-end tests (Playwright, in `e2e/`) |
+| `bun run typecheck` | `tsc --noEmit`                           |
+| `bun run lint`      | ESLint                                   |
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+Set `PLAYWRIGHT_BASE_URL=https://...` to run the e2e suite against a deployed URL instead of a local dev server.
 
-## Deploy on Vercel
+## Deployment
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+Deployed to Vercel with framework auto-detection and no environment variables or integrations.
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+The design spec and implementation plan live in `docs/superpowers/`.
