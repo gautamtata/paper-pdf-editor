@@ -1,5 +1,6 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { editorStore, Tool } from "@/lib/store/editor";
+import { registerOpenEditor } from "@/lib/store/openEditor";
 
 const order = ["p0", "p1", "p2", "p3", "p4"];
 
@@ -85,6 +86,35 @@ describe("selectPage", () => {
     editorStore.getState().selectPage("p2", "range", order);
 
     expect(selected()).toEqual(["p2"]);
+  });
+});
+
+describe("selecting pages drops the annotation focus", () => {
+  it("clears the selected annotation on selectPage and selectAll", () => {
+    editorStore.getState().setSelectedAnnotation({ pageId: "p2", id: "a1" });
+    editorStore.getState().selectPage("p1", "replace", order);
+    expect(editorStore.getState().selectedAnnotation).toBeNull();
+
+    editorStore.getState().setSelectedAnnotation({ pageId: "p2", id: "a1" });
+    editorStore.getState().selectPage("p3", "toggle", order);
+    expect(editorStore.getState().selectedAnnotation).toBeNull();
+
+    editorStore.getState().setSelectedAnnotation({ pageId: "p2", id: "a1" });
+    editorStore.getState().selectAll(order);
+    expect(editorStore.getState().selectedAnnotation).toBeNull();
+  });
+
+  it("finishes an open text box through its own layer", () => {
+    const finish = vi.fn();
+    const unregister = registerOpenEditor("a1", finish);
+    editorStore.getState().setEditingAnnotation({ pageId: "p2", id: "a1" });
+    editorStore.getState().selectPage("p1", "replace", order);
+    expect(finish).toHaveBeenCalledTimes(1);
+    expect(editorStore.getState().editingAnnotation).toBeNull();
+
+    editorStore.getState().selectPage("p2", "replace", order);
+    expect(finish).toHaveBeenCalledTimes(1);
+    unregister();
   });
 });
 

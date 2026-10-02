@@ -20,7 +20,13 @@ const EVERY_MS = 100;
 const UNSAFE = /[\\/:*?"<>|\x00-\x1f]/g;
 
 export function exportFilename(name: string): string {
-  const base = name.replace(UNSAFE, " ").replace(/\s+/g, " ").trim().replace(/^\.+/, "").trim();
+  const base = name
+    .replace(/\.pdf$/i, "")
+    .replace(UNSAFE, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/^\.+/, "")
+    .trim();
   return base.length === 0 ? "document.pdf" : `${base}.pdf`;
 }
 

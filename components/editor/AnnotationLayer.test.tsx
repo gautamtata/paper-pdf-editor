@@ -119,9 +119,6 @@ describe("AnnotationLayer", () => {
 
     fireEvent.pointerDown(first, { pointerId: 1, clientX: 60, clientY: 120 });
     rerender();
-    console.log("DBG", document.querySelectorAll("[role=textbox]").length,
-      document.querySelectorAll("[data-slot=text-editor]").length,
-      document.querySelectorAll('[data-slot="text-editor"][role="textbox"]').length);
     expect(openBoxes()).toHaveLength(1);
 
     fireEvent.pointerDown(second, { pointerId: 1, clientX: 80, clientY: 140 });

@@ -93,6 +93,14 @@ describe("ThumbnailRail", () => {
     expect(document.activeElement).toBe(cards[0]);
   });
 
+  it("lets a vertical swipe scroll the rail instead of claiming it as a drag", () => {
+    render(<ThumbnailRail />);
+    for (const card of screen.getAllByTestId("thumbnail")) {
+      expect(card.className).toContain("touch-pan-y");
+      expect(card.className).not.toContain("touch-none");
+    }
+  });
+
   it("marks the selected cards for assistive technology", () => {
     render(<ThumbnailRail />);
     const cards = screen.getAllByTestId("thumbnail");

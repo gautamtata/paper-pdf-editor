@@ -2,6 +2,7 @@ import { useStore } from "zustand";
 import { createStore } from "zustand/vanilla";
 import type { RGB } from "@/lib/annotations/types";
 import type { PageId } from "@/lib/pdf/types";
+import { finishOpenEditor } from "@/lib/store/openEditor";
 
 export enum Tool {
   Select = "select",
@@ -67,59 +68,71 @@ const rangeBetween = (order: PageId[], from: number, to: number): Set<PageId> =>
   return new Set(order.slice(lo, hi + 1));
 };
 
-export const editorStore = createStore<EditorState>()((set, get) => ({
-  tool: Tool.Select,
-  setTool: (tool) => set({ tool }),
+export const editorStore = createStore<EditorState>()((set, get) => {
+  /** Selecting pages takes the focus off any annotation, so Delete acts on the pages. */
+  const dropAnnotationFocus = (): void => {
+    if (get().editingAnnotation !== null) finishOpenEditor();
+    set({ selectedAnnotation: null, editingAnnotation: null });
+  };
 
-  selectedPageIds: new Set<PageId>(),
-  anchorId: null,
-  selectPage: (id, mode, order) => {
-    if (mode === "toggle") {
-      const selectedPageIds = new Set(get().selectedPageIds);
-      if (selectedPageIds.has(id)) selectedPageIds.delete(id);
-      else selectedPageIds.add(id);
-      set({ selectedPageIds, anchorId: id });
-      return;
-    }
-    const { anchorId } = get();
-    if (mode === "range" && anchorId !== null) {
-      const from = order.indexOf(anchorId);
-      const to = order.indexOf(id);
-      if (from !== -1 && to !== -1) {
-        set({ selectedPageIds: rangeBetween(order, from, to) });
+  return {
+    tool: Tool.Select,
+    setTool: (tool) => set({ tool }),
+
+    selectedPageIds: new Set<PageId>(),
+    anchorId: null,
+    selectPage: (id, mode, order) => {
+      dropAnnotationFocus();
+      if (mode === "toggle") {
+        const selectedPageIds = new Set(get().selectedPageIds);
+        if (selectedPageIds.has(id)) selectedPageIds.delete(id);
+        else selectedPageIds.add(id);
+        set({ selectedPageIds, anchorId: id });
         return;
       }
-    }
-    set({ selectedPageIds: new Set([id]), anchorId: id });
-  },
-  selectAll: (order) => set({ selectedPageIds: new Set(order) }),
-  clearSelection: () => set({ selectedPageIds: new Set<PageId>(), anchorId: null }),
+      const { anchorId } = get();
+      if (mode === "range" && anchorId !== null) {
+        const from = order.indexOf(anchorId);
+        const to = order.indexOf(id);
+        if (from !== -1 && to !== -1) {
+          set({ selectedPageIds: rangeBetween(order, from, to) });
+          return;
+        }
+      }
+      set({ selectedPageIds: new Set([id]), anchorId: id });
+    },
+    selectAll: (order) => {
+      dropAnnotationFocus();
+      set({ selectedPageIds: new Set(order) });
+    },
+    clearSelection: () => set({ selectedPageIds: new Set<PageId>(), anchorId: null }),
 
-  activePageId: null,
-  setActivePage: (activePageId) => set({ activePageId }),
+    activePageId: null,
+    setActivePage: (activePageId) => set({ activePageId }),
 
-  selectedAnnotation: null,
-  setSelectedAnnotation: (selectedAnnotation) => set({ selectedAnnotation }),
+    selectedAnnotation: null,
+    setSelectedAnnotation: (selectedAnnotation) => set({ selectedAnnotation }),
 
-  editingAnnotation: null,
-  setEditingAnnotation: (editingAnnotation) => set({ editingAnnotation }),
+    editingAnnotation: null,
+    setEditingAnnotation: (editingAnnotation) => set({ editingAnnotation }),
 
-  zoom: 1,
-  setZoom: (z) => set({ zoom: clampZoom(z), zoomMode: "custom" }),
-  zoomMode: "fit-width",
-  setZoomMode: (zoomMode) => set({ zoomMode }),
+    zoom: 1,
+    setZoom: (z) => set({ zoom: clampZoom(z), zoomMode: "custom" }),
+    zoomMode: "fit-width",
+    setZoomMode: (zoomMode) => set({ zoomMode }),
 
-  penColor: { r: 0, g: 0, b: 0 },
-  penSize: 3,
-  textColor: { r: 0, g: 0, b: 0 },
-  fontSize: 14,
-  highlightColor: { r: 1, g: 0.9, b: 0.2 },
-  setToolSetting: <K extends ToolSettingKey>(k: K, v: EditorState[K]): void => {
-    const patch: Partial<Pick<EditorState, ToolSettingKey>> = {};
-    patch[k] = v;
-    set(patch);
-  },
-}));
+    penColor: { r: 0, g: 0, b: 0 },
+    penSize: 3,
+    textColor: { r: 0, g: 0, b: 0 },
+    fontSize: 14,
+    highlightColor: { r: 1, g: 0.9, b: 0.2 },
+    setToolSetting: <K extends ToolSettingKey>(k: K, v: EditorState[K]): void => {
+      const patch: Partial<Pick<EditorState, ToolSettingKey>> = {};
+      patch[k] = v;
+      set(patch);
+    },
+  };
+});
 
 export const useEditor = <T>(selector: (s: EditorState) => T): T =>
   useStore(editorStore, selector);

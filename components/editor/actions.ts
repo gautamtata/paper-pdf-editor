@@ -62,8 +62,17 @@ export async function extractSelected(): Promise<void> {
     toast.error("Couldn't save the extracted pages");
     return;
   }
-  window.open(`/edit/${extracted.id}`, "_blank");
-  toast.success(`Extracted ${plural(ids.length, "page")} to a new document`);
+  const url = `/edit/${extracted.id}`;
+  const message = `Extracted ${plural(ids.length, "page")} to a new document`;
+  if (window.open(url, "_blank") !== null) {
+    toast.success(message);
+    return;
+  }
+  // The popup was blocked; a click on the toast is a gesture the browser will honour.
+  toast.message(message, {
+    description: "Your browser blocked the new tab.",
+    action: { label: "Open", onClick: () => void window.open(url, "_blank") },
+  });
 }
 
 /** Merges picked PDFs into the open document, inserting at `atIndex` (default: at the end). */

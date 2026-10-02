@@ -22,6 +22,13 @@ describe("exportFilename", () => {
     expect(exportFilename("...invoice")).toBe("invoice.pdf");
   });
 
+  it("does not double the extension a name already carries", () => {
+    expect(exportFilename("report.pdf")).toBe("report.pdf");
+    expect(exportFilename("Report.PDF")).toBe("Report.pdf");
+    expect(exportFilename("v2.pdf.pdf")).toBe("v2.pdf.pdf");
+    expect(exportFilename(".pdf")).toBe("document.pdf");
+  });
+
   it("falls back when nothing usable is left", () => {
     expect(exportFilename("  ///  ")).toBe("document.pdf");
   });
