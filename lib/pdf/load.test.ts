@@ -1,15 +1,8 @@
-import {
-  decodePDFRawStream,
-  degrees,
-  PDFArray,
-  PDFDocument,
-  PDFName,
-  PDFRawStream,
-} from "pdf-lib";
+import { degrees, PDFDocument, PDFName } from "pdf-lib";
 import { describe, expect, it } from "vitest";
 import { loadSource, PdfLoadError } from "@/lib/pdf/load";
 import { pagesFromSource, Rotation } from "@/lib/pdf/types";
-import { GARBAGE, makeEncryptedPdf, makePdf } from "@/test/fixtures";
+import { GARBAGE, makeEncryptedPdf, makePdf, pageContent } from "@/test/fixtures";
 
 describe("loadSource", () => {
   it("parses page count and sizes", async () => {
@@ -84,17 +77,6 @@ describe("encrypted fixture", () => {
     expect(forced.isEncrypted).toBe(true);
   });
 });
-
-/** The decoded content stream operators of one page of a loaded document. */
-function pageContent(doc: PDFDocument, index: number): string {
-  const contents = doc.getPage(index).node.Contents();
-  const refs = contents instanceof PDFArray ? contents.asArray() : [];
-  return refs
-    .map((ref) => doc.context.lookup(ref))
-    .filter((obj): obj is PDFRawStream => obj instanceof PDFRawStream)
-    .map((stream) => new TextDecoder().decode(decodePDFRawStream(stream).decode()))
-    .join("\n");
-}
 
 /** pdf-lib writes shown text as an upper-case hex string literal. */
 const hexLiteral = (text: string): string => {
