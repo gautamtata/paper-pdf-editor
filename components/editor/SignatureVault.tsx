@@ -38,11 +38,13 @@ function SignatureChip({
         {/* eslint-disable-next-line @next/next/no-img-element -- a blob URL, not an asset */}
         <img src={href} alt={signature.name} className="max-h-10 max-w-full object-contain" />
       </button>
+      {/* Faded rather than `hidden`: a `display: none` button cannot be tabbed to, which left the
+          keyboard with no way to delete a signature. It only takes clicks once it shows. */}
       <button
         type="button"
         aria-label={`Delete ${signature.name}`}
         onClick={onDelete}
-        className="absolute -right-1.5 -top-1.5 hidden size-5 items-center justify-center rounded-full border border-border bg-surface-raised text-foreground-muted shadow-soft transition-colors hover:bg-danger hover:text-danger-foreground group-hover:flex focus-visible:flex"
+        className="absolute -right-1.5 -top-1.5 flex size-5 items-center justify-center rounded-full border border-border bg-surface-raised text-foreground-muted opacity-0 shadow-soft transition-opacity hover:bg-danger hover:text-danger-foreground group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100 focus-visible:pointer-events-auto focus-visible:opacity-100 pointer-events-none"
       >
         <X className="size-3" />
       </button>

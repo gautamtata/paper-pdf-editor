@@ -14,12 +14,21 @@ const clamp01 = (v: number): number => Math.min(Math.max(v, 0), 1);
 /**
  * Turns a photographed page into ink on transparency, in place: paper drops out entirely and the
  * grey rim around a stroke keeps a partial alpha, so edges stay soft instead of jagged.
+ *
+ * The alpha the pixel arrived with scales the result. An image that is already cut out composites
+ * its empty regions to transparent black, which luminance alone would read as the darkest ink
+ * there is and hand back as a solid black rectangle.
  */
 export function thresholdToTransparent(data: Uint8ClampedArray): void {
   for (let i = 0; i < data.length; i += 4) {
+    const source = data[i + 3];
+    if (source === 0) continue;
     const luma = (0.2126 * data[i] + 0.7152 * data[i + 1] + 0.0722 * data[i + 2]) / 255;
-    data[i + 3] =
-      luma > PAPER_LUMA ? 0 : Math.round(255 * clamp01(((PAPER_LUMA - luma) / PAPER_LUMA) * EDGE_GAIN));
+    const alpha =
+      luma > PAPER_LUMA
+        ? 0
+        : Math.round(255 * clamp01(((PAPER_LUMA - luma) / PAPER_LUMA) * EDGE_GAIN));
+    data[i + 3] = Math.round((alpha * source) / 255);
   }
 }
 

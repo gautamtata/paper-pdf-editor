@@ -42,6 +42,21 @@ describe("thresholdToTransparent", () => {
     expect(dark).toBeGreaterThan(light);
   });
 
+  it("leaves an already transparent pixel transparent, however dark it reads", () => {
+    const data = pixels([0, 0, 0, 0]);
+    thresholdToTransparent(data);
+    expect(alphas(data)).toEqual([0]);
+  });
+
+  it("scales the result by the alpha the pixel arrived with", () => {
+    const opaque = pixels(INK);
+    const half = pixels([...INK.slice(0, 3), 127]);
+    thresholdToTransparent(opaque);
+    thresholdToTransparent(half);
+    expect(alphas(half)[0]).toBeLessThanOrEqual(alphas(opaque)[0] / 2);
+    expect(alphas(half)[0]).toBeGreaterThan(0);
+  });
+
   it("weights green most and blue least, as luminance does", () => {
     const data = pixels([0, 255, 0, 255], [0, 0, 255, 255]);
     thresholdToTransparent(data);
