@@ -7,13 +7,14 @@ import { EditorHeader } from "@/components/editor/EditorHeader";
 import { PageViewer } from "@/components/editor/PageViewer";
 import { ThumbnailRail } from "@/components/editor/ThumbnailRail";
 import { Toolbar } from "@/components/editor/Toolbar";
+import { useAutosave } from "@/components/editor/useAutosave";
 import { useAutosaveThumbnail } from "@/components/editor/useAutosaveThumbnail";
 import { useShortcuts } from "@/components/editor/useShortcuts";
 import { StorageBanner } from "@/components/StorageBanner";
 import { Button } from "@/components/ui/button";
 import { repo } from "@/lib/storage/repo";
 import { editorStore } from "@/lib/store/editor";
-import { startAutosave, useWorkspace, workspaceStore } from "@/lib/store/workspace";
+import { useWorkspace, workspaceStore } from "@/lib/store/workspace";
 import { cn } from "@/lib/utils";
 
 /** The shell only renders in the browser (a loaded workspace), so there is no server snapshot. */
@@ -69,34 +70,7 @@ export function EditorShell({ workspaceId }: { workspaceId: string }) {
     };
   }, [workspaceId]);
 
-  useEffect(() => {
-    let unsaved = false;
-    const stopAutosave = startAutosave(async (ws) => {
-      await repo.saveWorkspace(ws, thumbnailRef.current);
-      unsaved = false;
-    });
-    const unsubscribe = workspaceStore.subscribe((state, prev) => {
-      const next = state.workspace;
-      if (next === null || next === prev.workspace) return;
-      if (prev.workspace?.id === next.id) unsaved = true;
-    });
-    // `startAutosave`'s disposer only drops its timer, so an edit mid-debounce is written here.
-    const flush = () => {
-      const ws = workspaceStore.getState().workspace;
-      if (!unsaved || ws === null) return;
-      unsaved = false;
-      void repo.saveWorkspace(ws, thumbnailRef.current);
-    };
-    window.addEventListener("pagehide", flush);
-    window.addEventListener("beforeunload", flush);
-    return () => {
-      stopAutosave();
-      unsubscribe();
-      window.removeEventListener("pagehide", flush);
-      window.removeEventListener("beforeunload", flush);
-      flush();
-    };
-  }, [thumbnailRef]);
+  useAutosave(thumbnailRef);
 
   useEffect(() => {
     // A document opens showing a whole page; fit width stays a keystroke (⌘0) away.
