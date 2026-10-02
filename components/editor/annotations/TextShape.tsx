@@ -17,20 +17,6 @@ interface TextShapeProps {
 /** The line height the export flattens text with, so wrapping on screen matches the PDF. */
 const LINE_HEIGHT = 1.25;
 
-/** Keeps the box one text node: `textContent` then round-trips newlines exactly. */
-function insertPlainText(text: string): void {
-  const selection = window.getSelection();
-  if (selection === null || selection.rangeCount === 0) return;
-  const range = selection.getRangeAt(0);
-  range.deleteContents();
-  const node = document.createTextNode(text);
-  range.insertNode(node);
-  range.setStartAfter(node);
-  range.collapse(true);
-  selection.removeAllRanges();
-  selection.addRange(range);
-}
-
 function caretToEnd(el: HTMLElement): void {
   const selection = window.getSelection();
   if (selection === null) return;
@@ -74,7 +60,7 @@ export function TextShape({
       <foreignObject x={0} y={0} width={a.rect.w} height={height} style={{ overflow: "visible" }}>
         <div
           ref={ref}
-          contentEditable={editing}
+          contentEditable={editing ? "plaintext-only" : false}
           suppressContentEditableWarning
           role={editing ? "textbox" : undefined}
           aria-label={editing ? "Text box" : undefined}
@@ -88,7 +74,10 @@ export function TextShape({
             whiteSpace: "pre-wrap",
             overflowWrap: "break-word",
             outline: "none",
-            background: editing ? "var(--color-accent-soft)" : undefined,
+            userSelect: editing ? "text" : "none",
+            background: editing
+              ? "color-mix(in oklab, var(--color-accent) 8%, transparent)"
+              : undefined,
             pointerEvents: editing ? "auto" : "none",
           }}
           onInput={(e) => setGrown(e.currentTarget.scrollHeight)}
@@ -104,16 +93,6 @@ export function TextShape({
               onCancel();
               return;
             }
-            if (e.key === "Enter") {
-              e.preventDefault();
-              insertPlainText("\n");
-              setGrown(e.currentTarget.scrollHeight);
-            }
-          }}
-          onPaste={(e) => {
-            e.preventDefault();
-            insertPlainText(e.clipboardData.getData("text/plain"));
-            setGrown(e.currentTarget.scrollHeight);
           }}
         >
           {editing ? null : a.content}

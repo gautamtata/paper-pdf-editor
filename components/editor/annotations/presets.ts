@@ -20,7 +20,7 @@ export const INK_PRESETS: Preset[] = [
 ];
 
 export const HIGHLIGHT_PRESETS: Preset[] = [
-  { name: "Yellow", hex: "#ffdf50" },
+  { name: "Yellow", hex: "#ffe633" },
   { name: "Orange", hex: "#ffc06a" },
   { name: "Green", hex: "#82ec9c" },
   { name: "Blue", hex: "#90d7ff" },

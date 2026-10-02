@@ -172,6 +172,7 @@ export function PropertiesPopover({
         side="top"
         align="center"
         sideOffset={14}
+        data-slot="annotation-properties"
         aria-label="Annotation properties"
         className="pointer-events-auto w-auto min-w-60 p-2.5"
         onOpenAutoFocus={(e) => e.preventDefault()}

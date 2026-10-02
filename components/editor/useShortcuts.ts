@@ -33,7 +33,10 @@ const ownsKeyboard = (el: Element | null): boolean => {
   if (el === null) return false;
   if (el instanceof HTMLElement && el.isContentEditable) return true;
   if (el.tagName === "INPUT" || el.tagName === "TEXTAREA" || el.tagName === "SELECT") return true;
-  return el.closest("[role=dialog],[role=menu]") !== null;
+  const owner = el.closest("[role=dialog],[role=menu]");
+  // The annotation properties panel floats beside its shape rather than taking the page over, so
+  // undo, Delete and the tool keys keep working while it has focus.
+  return owner !== null && owner.getAttribute("data-slot") !== "annotation-properties";
 };
 
 const blocked = (target: EventTarget | null): boolean =>

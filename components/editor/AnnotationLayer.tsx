@@ -169,6 +169,8 @@ export function AnnotationLayer({
         onPointerDown={(e) => {
           if (e.pointerType === "mouse" && e.button !== 0) return;
           if (editingId !== null) return;
+          // Keeps the default focus reset from blurring a text box the same gesture just opened.
+          e.preventDefault();
           if (drawing) draw.down(e);
           else if (interactive) select.backgroundDown();
         }}

@@ -45,6 +45,8 @@ export function screenBox(r: Rect, m: Matrix): Rect {
 
 const SIZE = 7;
 const HIT = 18;
+/** Below this, the edge handles would sit on top of the corner ones, so only the corners show. */
+const EDGE_MIN = 30;
 
 const cursorFor = (px: number, py: number, box: Rect): string => {
   const dx = px - (box.x + box.w / 2);
@@ -74,7 +76,9 @@ export function SelectionHandles({ bounds, transform, onHandleDown }: SelectionH
         stroke="var(--color-accent)"
         strokeWidth={1}
       />
-      {HANDLES.map((h) => {
+      {HANDLES.filter(
+        (h) => (h.fx !== 0.5 || box.w >= EDGE_MIN) && (h.fy !== 0.5 || box.h >= EDGE_MIN),
+      ).map((h) => {
         const [px, py] = applyMatrix(transform, bounds.x + h.fx * bounds.w, bounds.y + h.fy * bounds.h);
         return (
           <g key={h.id} style={{ cursor: cursorFor(px, py, box), pointerEvents: "all" }}>
