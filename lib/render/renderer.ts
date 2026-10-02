@@ -82,7 +82,11 @@ export function renderPage(req: RenderRequest, signal?: AbortSignal): Promise<Re
   if (!signal) return flight.promise;
   return new Promise<Rendered>((resolve, reject) => {
     const onAbort = () => {
-      if (--flight.waiters === 0) flight.controller.abort();
+      if (--flight.waiters === 0) {
+        // Unregister first so a re-request in the same tick starts a fresh flight.
+        if (inflight.get(key) === flight) inflight.delete(key);
+        flight.controller.abort();
+      }
       reject(abortError());
     };
     signal.addEventListener("abort", onAbort, { once: true });

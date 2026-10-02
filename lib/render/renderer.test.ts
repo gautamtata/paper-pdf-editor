@@ -136,6 +136,25 @@ describe("renderPage cache", () => {
     await expect(renderPage(req(1), already.signal)).rejects.toMatchObject({ name: "AbortError" });
   });
 
+  it("starts a fresh flight when re-requested right after the sole waiter aborts", async () => {
+    let draws = 0;
+    _setDrawForTests(
+      (_r, signal) =>
+        new Promise<Rendered>((resolve, reject) => {
+          draws++;
+          signal.addEventListener("abort", () => reject(new Error("cancelled")));
+          if (draws === 2) resolve(stub());
+        }),
+    );
+    const ctrl = new AbortController();
+    const first = renderPage(req(0), ctrl.signal);
+    ctrl.abort();
+    const second = renderPage(req(0));
+    await expect(first).rejects.toMatchObject({ name: "AbortError" });
+    expect((await second).width).toBe(1);
+    expect(draws).toBe(2);
+  });
+
   it("keeps drawing for the remaining waiter when only one aborts", async () => {
     let drawSignal: AbortSignal | undefined;
     let release!: () => void;
