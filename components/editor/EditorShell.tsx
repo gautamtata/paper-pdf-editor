@@ -2,18 +2,22 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from "react";
+import { toast } from "sonner";
+import { placeSignature } from "@/components/editor/actions";
 import { CommandPalette } from "@/components/editor/CommandPalette";
 import { EditorHeader } from "@/components/editor/EditorHeader";
 import { PageViewer } from "@/components/editor/PageViewer";
+import { SignatureDialog } from "@/components/editor/SignatureDialog";
 import { ThumbnailRail } from "@/components/editor/ThumbnailRail";
 import { Toolbar } from "@/components/editor/Toolbar";
 import { useAutosave } from "@/components/editor/useAutosave";
 import { useAutosaveThumbnail } from "@/components/editor/useAutosaveThumbnail";
 import { useShortcuts } from "@/components/editor/useShortcuts";
+import { useSignatureVault } from "@/components/editor/useSignatureVault";
 import { StorageBanner } from "@/components/StorageBanner";
 import { Button } from "@/components/ui/button";
 import { repo } from "@/lib/storage/repo";
-import { editorStore } from "@/lib/store/editor";
+import { Tool, editorStore, useEditor } from "@/lib/store/editor";
 import { useWorkspace, workspaceStore } from "@/lib/store/workspace";
 import { cn } from "@/lib/utils";
 
@@ -41,8 +45,20 @@ export function EditorShell({ workspaceId }: { workspaceId: string }) {
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [displayScale, setDisplayScale] = useState(1);
   const workspace = useWorkspace((s) => s.workspace);
+  // The signature tool is a dialog rather than a cursor, so holding it is what being open means.
+  const signing = useEditor((s) => s.tool === Tool.Signature);
   const nameRef = useRef<HTMLInputElement>(null);
   const thumbnailRef = useAutosaveThumbnail();
+  const vault = useSignatureVault();
+
+  const saveSignature = useCallback(
+    (png: Uint8Array) => {
+      void vault.save(vault.nextName(), png).then((saved) => {
+        if (saved) toast.success("Saved to your signatures");
+      });
+    },
+    [vault],
+  );
 
   useEffect(() => {
     // The store already holds it when we arrive straight from creating it.
@@ -132,10 +148,20 @@ export function EditorShell({ workspaceId }: { workspaceId: string }) {
 
         {/* The toolbar floats over the pages, centred on them rather than on the window. */}
         <div className="relative flex min-w-0 flex-1">
-          <PageViewer onDisplayScale={setDisplayScale} />
+          <PageViewer onDisplayScale={setDisplayScale} onSaveSignature={saveSignature} />
           <Toolbar displayScale={displayScale} />
         </div>
       </div>
+
+      <SignatureDialog
+        open={signing}
+        onOpenChange={(next) => {
+          // Closing hands the cursor back; placing has set Select already.
+          if (!next) editorStore.getState().setTool(Tool.Select);
+        }}
+        vault={vault}
+        onPlace={placeSignature}
+      />
 
       <CommandPalette
         open={paletteOpen}

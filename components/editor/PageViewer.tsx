@@ -62,7 +62,13 @@ const extentOf = (
     { width: 1, height: 1 },
   );
 
-export function PageViewer({ onDisplayScale }: { onDisplayScale: (scale: number) => void }) {
+interface PageViewerProps {
+  onDisplayScale: (scale: number) => void;
+  /** Offered by the properties popover on an image, and wired to the signature vault. */
+  onSaveSignature?: (png: Uint8Array) => void;
+}
+
+export function PageViewer({ onDisplayScale, onSaveSignature }: PageViewerProps) {
   const pages = useWorkspace((s) => s.workspace?.pages) ?? NO_PAGES;
   const sources = useWorkspace((s) => s.workspace?.sources);
   const zoom = useEditor((s) => s.zoom);
@@ -124,6 +130,7 @@ export function PageViewer({ onDisplayScale }: { onDisplayScale: (scale: number)
               near={near.has(page.id)}
               selected={selectedPageIds.has(page.id)}
               onSelect={() => editorStore.getState().selectPage(page.id, "replace", order)}
+              onSaveSignature={onSaveSignature}
             />
           ))
         )}

@@ -1,8 +1,9 @@
 import { toast } from "sonner";
+import { createImage } from "@/lib/annotations/types";
 import { loadPdfFiles } from "@/lib/pdf/open-files";
 import type { PageId, Rotation } from "@/lib/pdf/types";
 import { repo } from "@/lib/storage/repo";
-import { MAX_ZOOM, MIN_ZOOM, editorStore } from "@/lib/store/editor";
+import { MAX_ZOOM, MIN_ZOOM, Tool, editorStore } from "@/lib/store/editor";
 import { workspaceStore } from "@/lib/store/workspace";
 import { isPdfFile } from "@/lib/utils";
 
@@ -75,6 +76,28 @@ export async function addFiles(files: File[], atIndex?: number): Promise<void> {
   workspaceStore.getState().addSources(sources, atIndex);
   const added = sources.reduce((total, src) => total + src.pageCount, 0);
   toast.success(`Added ${plural(added, "page")}`);
+}
+
+/** How wide a placed signature is, in PDF points: legible without covering the line it signs. */
+export const SIGNATURE_WIDTH = 180;
+
+/**
+ * Centres a signature on the page in view, hands back the Select tool and leaves it selected, so
+ * the next gesture moves it where it belongs.
+ */
+export function placeSignature(png: Uint8Array, aspect: number): void {
+  const editor = editorStore.getState();
+  const pages = workspaceStore.getState().workspace?.pages ?? [];
+  const page = pages.find((p) => p.id === editor.activePageId) ?? pages[0];
+  if (page === undefined || !Number.isFinite(aspect) || aspect <= 0) return;
+  // Narrows rather than crops on a page too small to hold the default width.
+  const w = Math.min(SIGNATURE_WIDTH, page.size.w, page.size.h * aspect);
+  const h = w / aspect;
+  const rect = { x: (page.size.w - w) / 2, y: (page.size.h - h) / 2, w, h };
+  const image = createImage(rect, png, aspect);
+  workspaceStore.getState().addAnnotation(page.id, image);
+  editor.setSelectedAnnotation({ pageId: page.id, id: image.id });
+  editor.setTool(Tool.Select);
 }
 
 export function scrollToPage(id: PageId): void {

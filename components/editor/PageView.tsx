@@ -17,6 +17,7 @@ interface PageViewProps {
   near: boolean;
   selected: boolean;
   onSelect: () => void;
+  onSaveSignature?: (png: Uint8Array) => void;
 }
 
 export function PageView({
@@ -28,6 +29,7 @@ export function PageView({
   near,
   selected,
   onSelect,
+  onSaveSignature,
 }: PageViewProps) {
   const box = pageBox(page, source, displayScale);
   const transform = pageTransform(page, source, displayScale);
@@ -62,7 +64,13 @@ export function PageView({
             className={cn("block transition-opacity", painted ? "opacity-100" : "opacity-0")}
           />
         )}
-        <AnnotationLayer page={page} transform={transform} width={width} height={height} />
+        <AnnotationLayer
+          page={page}
+          transform={transform}
+          width={width}
+          height={height}
+          onSaveSignature={onSaveSignature}
+        />
       </div>
       <span className="mt-2 mb-1 text-[0.6875rem] tabular-nums text-foreground-subtle">
         {index + 1}
