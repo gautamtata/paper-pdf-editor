@@ -9,6 +9,7 @@ import {
   resizeAnnotation,
   translateAnnotation,
   type Annotation,
+  type InkPoint,
   type Rect,
 } from "@/lib/annotations/types";
 import type { PageId, PageSize } from "@/lib/pdf/types";
@@ -44,6 +45,30 @@ interface Drag {
   handle: Handle | null;
   latest: Annotation | null;
 }
+
+const samePoints = (a: InkPoint[][], b: InkPoint[][]): boolean =>
+  a.length === b.length &&
+  a.every((stroke, i) => {
+    const other = b[i];
+    return (
+      stroke.length === other.length &&
+      stroke.every((p, j) => p.x === other[j].x && p.y === other[j].y)
+    );
+  });
+
+/**
+ * A drag can end exactly where it started: dragged back, absorbed by `clampRect`, or an image edge
+ * whose height follows its width. Committing that would leave a no-op step in the history.
+ */
+const sameGeometry = (base: Annotation, latest: Annotation): boolean =>
+  base.kind === AnnotationKind.Ink || latest.kind === AnnotationKind.Ink
+    ? base.kind === AnnotationKind.Ink &&
+      latest.kind === AnnotationKind.Ink &&
+      samePoints(base.strokes, latest.strokes)
+    : base.rect.x === latest.rect.x &&
+      base.rect.y === latest.rect.y &&
+      base.rect.w === latest.rect.w &&
+      base.rect.h === latest.rect.h;
 
 /** Only geometry moves, so a commit patches exactly what the drag changed. */
 const geometryPatch = (a: Annotation): Partial<Annotation> =>
@@ -118,6 +143,10 @@ export function useSelectTool({ pageId, pageSize, toPdf }: Options): SelectTool 
     drag.current = null;
     setDragging(false);
     if (d === null || d.latest === null) return;
+    if (sameGeometry(d.base, d.latest)) {
+      workspaceStore.getState().cancelGesture();
+      return;
+    }
     workspaceStore.getState().updateAnnotation(pageId, d.base.id, geometryPatch(d.latest));
   }, [pageId]);
 

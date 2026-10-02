@@ -125,13 +125,23 @@ export function AnnotationLayer({
     return () => window.removeEventListener("keydown", onKeyDown, true);
   }, [gesturing, cancelDraw, cancelSelect]);
 
+  /** Escape: the edits go, and a box that never committed goes with its own creation. */
+  const cancelText = (a: TextAnnotation): void => {
+    setEditingId(null);
+    if (a.content !== "") return;
+    workspaceStore.getState().cancelGesture();
+    editorStore.getState().setSelectedAnnotation(null);
+  };
+
   /** A text box keeps its top edge and grows downwards, so a taller box has a lower `y`. */
   const commitText = (a: TextAnnotation, content: string, contentHeight: number): void => {
     setEditingId(null);
     editorStore.getState().setTool(Tool.Select);
     const ws = workspaceStore.getState();
     if (content.trim() === "") {
-      ws.removeAnnotation(page.id, a.id);
+      // Still transient when nothing was ever committed; emptying a saved box is a real deletion.
+      if (a.content === "") ws.cancelGesture();
+      else ws.removeAnnotation(page.id, a.id);
       editorStore.getState().setSelectedAnnotation(null);
       return;
     }
@@ -160,11 +170,7 @@ export function AnnotationLayer({
               onPointerDown(e);
             }}
             onCommit={(content, contentHeight) => commitText(a, content, contentHeight)}
-            onCancel={() => {
-              setEditingId(null);
-              // Escaping out of a box that never had content leaves nothing behind.
-              if (a.content === "") workspaceStore.getState().removeAnnotation(page.id, a.id);
-            }}
+            onCancel={() => cancelText(a)}
           />
         );
       case AnnotationKind.Ink:

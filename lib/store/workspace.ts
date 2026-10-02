@@ -39,7 +39,7 @@ export interface WorkspaceState {
   /** A detached workspace built from `ids`; neither this workspace nor its history changes. */
   extractToWorkspace(ids: PageId[], name: string): Workspace;
 
-  addAnnotation(pageId: PageId, a: Annotation): void;
+  addAnnotation(pageId: PageId, a: Annotation, opts?: { transient?: boolean }): void;
   updateAnnotation(
     pageId: PageId,
     id: string,
@@ -115,6 +115,32 @@ export const workspaceStore = createStore<WorkspaceState>()((set, get) => {
       return pages === ws.pages ? ws : { ...ws, pages };
     });
 
+  /**
+   * One annotation edit of a gesture. A transient edit only arms `gestureBase`; the committing one
+   * pushes it, so a whole gesture — including the add that started it — costs one history entry.
+   */
+  const editAnnotations = (
+    pageId: PageId,
+    next: (page: VirtualPage) => VirtualPage,
+    transient: boolean,
+  ): void => {
+    const { workspace, gestureBase, past } = get();
+    if (workspace === null) return;
+    const pages = mapPage(workspace.pages, pageId, next);
+    if (pages === workspace.pages) return;
+    const updated = { ...workspace, pages, updatedAt: Date.now() };
+    if (transient) {
+      set({ workspace: updated, gestureBase: gestureBase ?? workspace.pages });
+      return;
+    }
+    set({
+      workspace: updated,
+      past: pushSnapshot(past, gestureBase ?? workspace.pages),
+      future: [],
+      gestureBase: null,
+    });
+  };
+
   return {
     workspace: null,
     past: [],
@@ -167,34 +193,21 @@ export const workspaceStore = createStore<WorkspaceState>()((set, get) => {
       return { id: newId(), name, sources, pages, updatedAt: Date.now() };
     },
 
-    addAnnotation: (pageId, a) =>
-      editPages((pages) =>
-        mapPage(pages, pageId, (page) => ({ ...page, annotations: [...page.annotations, a] })),
+    addAnnotation: (pageId, a, opts) =>
+      editAnnotations(
+        pageId,
+        (page) => ({ ...page, annotations: [...page.annotations, a] }),
+        opts?.transient === true,
       ),
 
-    updateAnnotation: (pageId, id, patch, opts) => {
-      const { workspace, gestureBase, past } = get();
-      if (workspace === null) return;
-      const pages = mapPage(
-        workspace.pages,
+    updateAnnotation: (pageId, id, patch, opts) =>
+      editAnnotations(
         pageId,
         mapAnnotations(id, (annotations) =>
           annotations.map((a) => (a.id === id ? merge(a, patch) : a)),
         ),
-      );
-      if (pages === workspace.pages) return;
-      const workspaceNext = { ...workspace, pages, updatedAt: Date.now() };
-      if (opts?.transient === true) {
-        set({ workspace: workspaceNext, gestureBase: gestureBase ?? workspace.pages });
-        return;
-      }
-      set({
-        workspace: workspaceNext,
-        past: pushSnapshot(past, gestureBase ?? workspace.pages),
-        future: [],
-        gestureBase: null,
-      });
-    },
+        opts?.transient === true,
+      ),
 
     cancelGesture: () => {
       const { workspace, gestureBase } = get();

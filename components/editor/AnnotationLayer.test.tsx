@@ -1,9 +1,10 @@
 // @vitest-environment jsdom
-import { cleanup, fireEvent, render } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   AnnotationKind,
   createRect,
+  createText,
   type Annotation,
   type InkAnnotation,
 } from "@/lib/annotations/types";
@@ -121,6 +122,66 @@ describe("AnnotationLayer", () => {
     fireEvent.pointerDown(shape as Element, { pointerId: 1, clientX: 60, clientY: 520 });
 
     expect(editorStore.getState().selectedAnnotation).toEqual({ pageId: pageId(), id: rect.id });
+  });
+
+  it("leaves no annotation and no history when a new text box is escaped", () => {
+    editorStore.setState({ tool: Tool.Text });
+    const historyBefore = workspaceStore.getState().past.length;
+    const { layer, rerender } = renderLayer();
+
+    fireEvent.pointerDown(layer, { pointerId: 1, clientX: 60, clientY: 120 });
+    rerender();
+    // The box exists to be typed into, but nothing has committed it yet.
+    expect(annotations()).toHaveLength(1);
+    expect(workspaceStore.getState().past).toHaveLength(historyBefore);
+
+    fireEvent.keyDown(screen.getByRole("textbox"), { key: "Escape" });
+    rerender();
+
+    expect(annotations()).toEqual([]);
+    expect(workspaceStore.getState().past).toHaveLength(historyBefore);
+    expect(workspaceStore.getState().gestureBase).toBeNull();
+    expect(editorStore.getState().selectedAnnotation).toBeNull();
+  });
+
+  it("removes a saved text box that is emptied, as one undoable step", () => {
+    const text = createText({ x: 20, y: 40, w: 200, h: 20 }, { content: "draft" });
+    workspaceStore.getState().addAnnotation(pageId(), text);
+    const historyBefore = workspaceStore.getState().past.length;
+    const { layer, rerender } = renderLayer();
+
+    const shape = layer.querySelector(`[data-annotation-id="${text.id}"] rect`);
+    fireEvent.pointerDown(shape as Element, { pointerId: 1, clientX: 60, clientY: 550 });
+    fireEvent.pointerUp(layer, { pointerId: 1, clientX: 60, clientY: 550 });
+    fireEvent.pointerDown(shape as Element, { pointerId: 1, clientX: 60, clientY: 550 });
+    rerender();
+
+    const box = screen.getByRole("textbox");
+    box.textContent = "";
+    fireEvent.blur(box);
+    rerender();
+
+    expect(annotations()).toEqual([]);
+    expect(workspaceStore.getState().past).toHaveLength(historyBefore + 1);
+    workspaceStore.getState().undo();
+    expect(annotations()[0]).toEqual(text);
+  });
+
+  it("commits nothing when a drag ends on the geometry it started from", () => {
+    const rect = createRect({ x: 30, y: 40, w: 120, h: 60 });
+    workspaceStore.getState().addAnnotation(pageId(), rect);
+    const historyBefore = workspaceStore.getState().past.length;
+    const { layer } = renderLayer();
+
+    const shape = layer.querySelector(`[data-annotation-id="${rect.id}"]`);
+    fireEvent.pointerDown(shape as Element, { pointerId: 1, clientX: 60, clientY: 520 });
+    fireEvent.pointerMove(layer, { pointerId: 1, clientX: 100, clientY: 480 });
+    fireEvent.pointerMove(layer, { pointerId: 1, clientX: 60, clientY: 520 });
+    fireEvent.pointerUp(layer, { pointerId: 1, clientX: 60, clientY: 520 });
+
+    expect(annotations()[0]).toEqual(rect);
+    expect(workspaceStore.getState().past).toHaveLength(historyBefore);
+    expect(workspaceStore.getState().gestureBase).toBeNull();
   });
 
   it("drops a drag and records no history when Escape is pressed mid-move", () => {

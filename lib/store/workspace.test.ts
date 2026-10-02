@@ -377,6 +377,42 @@ describe("annotations", () => {
     expect(workspaceStore.getState().canRedo()).toBe(true);
   });
 
+  it("keeps a transient add out of history until something commits it", () => {
+    const pageId = withPage();
+    const text = createText({ x: 0, y: 0, w: 10, h: 10 });
+    const pagesBeforeAdd = ws().pages;
+
+    workspaceStore.getState().addAnnotation(pageId, text, { transient: true });
+
+    expect(annotationsOf(pageId)).toHaveLength(1);
+    expect(workspaceStore.getState().past).toEqual([]);
+    expect(workspaceStore.getState().gestureBase).toBe(pagesBeforeAdd);
+
+    workspaceStore.getState().updateAnnotation(pageId, text.id, { content: "hello" });
+
+    expect(annotationsOf(pageId)[0]).toMatchObject({ content: "hello" });
+    expect(workspaceStore.getState().past).toHaveLength(1);
+    expect(workspaceStore.getState().gestureBase).toBeNull();
+
+    workspaceStore.getState().undo();
+    expect(annotationsOf(pageId)).toEqual([]);
+  });
+
+  it("drops a transient add entirely when the gesture is cancelled", () => {
+    const pageId = withPage();
+    const pagesBeforeAdd = ws().pages;
+
+    workspaceStore
+      .getState()
+      .addAnnotation(pageId, createText({ x: 0, y: 0, w: 10, h: 10 }), { transient: true });
+    workspaceStore.getState().cancelGesture();
+
+    expect(ws().pages).toBe(pagesBeforeAdd);
+    expect(annotationsOf(pageId)).toEqual([]);
+    expect(workspaceStore.getState().past).toEqual([]);
+    expect(workspaceStore.getState().gestureBase).toBeNull();
+  });
+
   describe("cancelGesture", () => {
     it("restores the pages the gesture started from without recording history", () => {
       const pageId = withPage();

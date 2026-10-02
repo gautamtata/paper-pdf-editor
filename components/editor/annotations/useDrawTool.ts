@@ -104,7 +104,8 @@ export function useDrawTool({ pageId, pageSize, toPdf, onEditText }: Options): D
       const editor = editorStore.getState();
       const box = clampRect({ x: at.x, y: at.y - TEXT_BOX.h, ...TEXT_BOX }, pageSize);
       const text = createText(box, { fontSize: editor.fontSize, color: editor.textColor });
-      workspaceStore.getState().addAnnotation(pageId, text);
+      // Transient until the first commit: an abandoned box costs no history entry at all.
+      workspaceStore.getState().addAnnotation(pageId, text, { transient: true });
       editor.setSelectedAnnotation({ pageId, id: text.id });
       onEditText(text.id);
     },
