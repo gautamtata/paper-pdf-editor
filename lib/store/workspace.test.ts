@@ -376,6 +376,43 @@ describe("annotations", () => {
     expect(annotationsOf(pageId)[0]).toMatchObject({ content: "x" });
     expect(workspaceStore.getState().canRedo()).toBe(true);
   });
+
+  describe("cancelGesture", () => {
+    it("restores the pages the gesture started from without recording history", () => {
+      const pageId = withPage();
+      const text = createText({ x: 0, y: 0, w: 10, h: 10 });
+      workspaceStore.getState().addAnnotation(pageId, text);
+      const historyAfterAdd = workspaceStore.getState().past.length;
+      const pagesAfterAdd = ws().pages;
+
+      workspaceStore
+        .getState()
+        .updateAnnotation(pageId, text.id, { rect: { x: 7, y: 0, w: 10, h: 10 } }, {
+          transient: true,
+        });
+      expect(workspaceStore.getState().gestureBase).toBe(pagesAfterAdd);
+
+      workspaceStore.getState().cancelGesture();
+
+      expect(ws().pages).toBe(pagesAfterAdd);
+      expect(annotationsOf(pageId)[0]).toEqual(text);
+      expect(workspaceStore.getState().past).toHaveLength(historyAfterAdd);
+      expect(workspaceStore.getState().gestureBase).toBeNull();
+    });
+
+    it("is a no-op when no gesture is in flight", () => {
+      const pageId = withPage();
+      workspaceStore.getState().addAnnotation(pageId, createText({ x: 0, y: 0, w: 10, h: 10 }));
+      const before = ws();
+      const { past, future } = workspaceStore.getState();
+
+      workspaceStore.getState().cancelGesture();
+
+      expect(ws()).toBe(before);
+      expect(workspaceStore.getState().past).toBe(past);
+      expect(workspaceStore.getState().future).toBe(future);
+    });
+  });
 });
 
 describe("rename", () => {

@@ -1,5 +1,6 @@
+import type { Matrix } from "@/lib/annotations/geometry";
 import { addRotation, Rotation, type SourceDoc, type VirtualPage } from "@/lib/pdf/types";
-import { getViewportSize } from "@/lib/render/renderer";
+import { getViewportSize, getViewportTransform } from "@/lib/render/renderer";
 
 /** The source page's own `/Rotate`; `R0` for blank pages and while a source is missing. */
 export const intrinsicRotation = (page: VirtualPage, source: SourceDoc | undefined): Rotation =>
@@ -19,3 +20,10 @@ export const pageBox = (
   scale: number,
 ): { width: number; height: number } =>
   getViewportSize(page.size, intrinsicRotation(page, source), page.rotation, scale);
+
+/** PDF user space of the unrotated page to CSS pixels of its on-screen box at `scale`. */
+export const pageTransform = (
+  page: VirtualPage,
+  source: SourceDoc | undefined,
+  scale: number,
+): Matrix => getViewportTransform(page.size, intrinsicRotation(page, source), page.rotation, scale);
