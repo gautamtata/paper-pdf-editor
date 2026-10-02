@@ -10,7 +10,10 @@ interface Entry {
 const entries = new Map<string, Entry>();
 const signatures = new Map<string, StoredSignature>();
 
-/** A detached copy carrying only the sources its pages reference, as the DB store does. */
+/**
+ * A detached copy carrying only the sources its pages reference, as the DB store does. Entries are
+ * replaced wholesale, so an edit that drops a source's last page drops its bytes with it.
+ */
 function detach(ws: Workspace): Workspace {
   const used = usedSourceIds(ws.pages);
   const sources: Record<SourceId, SourceDoc> = {};

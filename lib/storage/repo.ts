@@ -36,10 +36,24 @@ const toBytes = async (blob: Blob): Promise<Uint8Array> => new Uint8Array(await 
 // BlobPart (it could be SharedArrayBuffer-backed); ours never is.
 const toBlob = (bytes: Uint8Array): Blob => new Blob([bytes as BlobPart]);
 
+/**
+ * Deletes the candidates no workspace record references any more. Call inside a `rw` transaction,
+ * after the workspace records have been written, so `sourceIds` are current.
+ */
+async function collectSources(candidates: string[]): Promise<void> {
+  if (candidates.length === 0) return;
+  const stillUsed = new Set(
+    (await db.workspaces.toArray()).flatMap((workspace) => workspace.sourceIds),
+  );
+  const orphans = candidates.filter((id) => !stillUsed.has(id));
+  if (orphans.length > 0) await db.sources.bulkDelete(orphans);
+}
+
 const dexieStore: Store = {
   async saveWorkspace(ws, thumbnail) {
     const sourceIds = [...usedSourceIds(ws.pages)];
     await db.transaction("rw", db.sources, db.workspaces, async () => {
+      const previous = await db.workspaces.get(ws.id);
       for (const id of sourceIds) {
         // Sources are content-immutable, so an existing record never needs rewriting.
         if ((await db.sources.get(id)) !== undefined) continue;
@@ -54,7 +68,7 @@ const dexieStore: Store = {
           pages: src.pages,
         });
       }
-      const kept = thumbnail ?? (await db.workspaces.get(ws.id))?.thumbnail;
+      const kept = thumbnail ?? previous?.thumbnail;
       await db.workspaces.put({
         id: ws.id,
         name: ws.name,
@@ -63,6 +77,8 @@ const dexieStore: Store = {
         updatedAt: ws.updatedAt,
         ...(kept === undefined ? {} : { thumbnail: kept }),
       });
+      // An edit that dropped every page of a source leaves that source behind.
+      await collectSources(previous?.sourceIds ?? []);
     });
   },
 
@@ -102,11 +118,7 @@ const dexieStore: Store = {
       const record = await db.workspaces.get(id);
       if (record === undefined) return;
       await db.workspaces.delete(id);
-      const stillUsed = new Set(
-        (await db.workspaces.toArray()).flatMap((workspace) => workspace.sourceIds),
-      );
-      const orphans = record.sourceIds.filter((sourceId) => !stillUsed.has(sourceId));
-      if (orphans.length > 0) await db.sources.bulkDelete(orphans);
+      await collectSources(record.sourceIds);
     });
   },
 
@@ -138,6 +150,7 @@ const dexieStore: Store = {
 };
 
 let memoryOnly = false;
+let flipping: Promise<void> | null = null;
 const listeners = new Set<(memoryOnly: boolean) => void>();
 
 const isQuotaError = (err: unknown): boolean => {
@@ -146,11 +159,16 @@ const isQuotaError = (err: unknown): boolean => {
   return name === "QuotaExceededError" || inner?.name === "QuotaExceededError";
 };
 
-async function fallBackToMemory(): Promise<void> {
-  await hydrateMemory(dexieStore);
-  memoryOnly = true;
-  for (const listener of listeners) listener(true);
-}
+/**
+ * Idempotent: concurrent writes that all hit the quota share one snapshot, so the mode change is
+ * announced once and no late snapshot overwrites a retry that already landed in memory.
+ */
+const fallBackToMemory = (): Promise<void> =>
+  (flipping ??= (async () => {
+    await hydrateMemory(dexieStore);
+    memoryOnly = true;
+    for (const listener of listeners) listener(true);
+  })());
 
 const read = <T>(run: (store: Store) => Promise<T>): Promise<T> =>
   run(memoryOnly ? memoryStore : dexieStore);
@@ -204,5 +222,6 @@ export const repo = {
 /** Test-only: forgets memory-only mode and its subscribers. */
 export function __resetForTests(): void {
   memoryOnly = false;
+  flipping = null;
   listeners.clear();
 }

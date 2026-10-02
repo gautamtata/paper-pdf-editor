@@ -159,6 +159,54 @@ describe("deleteWorkspace", () => {
   });
 });
 
+describe("source collection on save", () => {
+  const onlyFrom = (ws: Workspace, keep: SourceDoc): Workspace => ({
+    ...ws,
+    pages: ws.pages.filter((page) => page.sourceId === keep.id),
+    updatedAt: 2_000,
+  });
+
+  it("deletes a source whose last page the edit removed", async () => {
+    const kept = await source("kept");
+    const dropped = await source("dropped");
+    const ws = workspaceOf("Edited", [kept, dropped]);
+    await repo.saveWorkspace(ws);
+    expect(await db.sources.count()).toBe(2);
+
+    await repo.saveWorkspace(onlyFrom(ws, kept));
+
+    expect((await db.sources.toArray()).map((s) => s.id)).toEqual([kept.id]);
+    expect(Object.keys((await repo.getWorkspace(ws.id))?.sources ?? {})).toEqual([kept.id]);
+  });
+
+  it("keeps a dropped source another workspace still references", async () => {
+    const kept = await source("kept");
+    const shared = await source("shared");
+    const ws = workspaceOf("Edited", [kept, shared]);
+    const other = workspaceOf("Other", [shared]);
+    await repo.saveWorkspace(ws);
+    await repo.saveWorkspace(other);
+
+    await repo.saveWorkspace(onlyFrom(ws, kept));
+
+    expect(await db.sources.get(shared.id)).toBeDefined();
+    expect(await repo.getWorkspace(other.id)).toBeDefined();
+  });
+
+  it("drops the source in memory-only mode too", async () => {
+    vi.spyOn(db.workspaces, "put").mockRejectedValue(quotaError());
+    const kept = await source("kept");
+    const dropped = await source("dropped");
+    const ws = workspaceOf("Edited", [kept, dropped]);
+    await repo.saveWorkspace(ws);
+    expect(repo.isMemoryOnly()).toBe(true);
+
+    await repo.saveWorkspace(onlyFrom(ws, kept));
+
+    expect(Object.keys((await repo.getWorkspace(ws.id))?.sources ?? {})).toEqual([kept.id]);
+  });
+});
+
 describe("signatures", () => {
   it("saves, lists newest first, and deletes", async () => {
     const first = await repo.saveSignature("First", TINY_PNG);
@@ -263,6 +311,26 @@ describe("quota fallback", () => {
 
     await repo.deleteSignature(sig.id);
     expect(await repo.listSignatures()).toEqual([]);
+  });
+
+  it("flips once for concurrent failing writes and keeps their retries", async () => {
+    const existing = workspaceOf("Existing", [await source("e")], 1_000);
+    await repo.saveWorkspace(existing);
+
+    const seen: boolean[] = [];
+    repo.onModeChange((memoryOnly) => seen.push(memoryOnly));
+    vi.spyOn(db.workspaces, "put").mockRejectedValue(quotaError());
+
+    const other = workspaceOf("Other", [await source("o")], 2_000);
+    await Promise.all([
+      repo.saveWorkspace({ ...existing, name: "Renamed", updatedAt: 3_000 }),
+      repo.saveWorkspace(other),
+    ]);
+
+    expect(seen).toEqual([true]);
+    // A second snapshot of the database would restore the stale name over the retry.
+    expect((await repo.getWorkspace(existing.id))?.name).toBe("Renamed");
+    expect((await repo.getWorkspace(other.id))?.name).toBe("Other");
   });
 
   it("rethrows non-quota write errors and stays on the database", async () => {
