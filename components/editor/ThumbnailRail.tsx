@@ -14,7 +14,7 @@ import {
   rectSortingStrategy,
   sortableKeyboardCoordinates,
 } from "@dnd-kit/sortable";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { scrollToPage } from "@/components/editor/actions";
 import { ThumbnailCard } from "@/components/editor/ThumbnailCard";
 import { useRailDrop } from "@/components/editor/useRailDrop";
@@ -26,6 +26,23 @@ import { cn } from "@/lib/utils";
 
 const NO_PAGES: VirtualPage[] = [];
 
+/**
+ * Moves focus to the neighbouring card. The row width comes from the cards sharing the first one's
+ * top edge, so the arrows follow the grid however many columns it has.
+ */
+function focusNeighbour(grid: HTMLElement, key: string): boolean {
+  const cards = [...grid.querySelectorAll<HTMLElement>("[data-page-card]")];
+  const at = cards.findIndex((card) => card === document.activeElement);
+  if (at === -1) return false;
+  const perRow = Math.max(1, cards.filter((c) => c.offsetTop === cards[0].offsetTop).length);
+  const step =
+    key === "ArrowRight" ? 1 : key === "ArrowLeft" ? -1 : key === "ArrowDown" ? perRow : -perRow;
+  cards[Math.min(Math.max(at + step, 0), cards.length - 1)]?.focus();
+  return true;
+}
+
+const ARROWS = new Set(["ArrowRight", "ArrowLeft", "ArrowDown", "ArrowUp"]);
+
 export function ThumbnailRail({ className }: { className?: string }) {
   const pages = useWorkspace((s) => s.workspace?.pages) ?? NO_PAGES;
   const sources = useWorkspace((s) => s.workspace?.sources);
@@ -33,6 +50,11 @@ export function ThumbnailRail({ className }: { className?: string }) {
   const activePageId = useEditor((s) => s.activePageId);
   const order = useMemo(() => pages.map((page) => page.id), [pages]);
   const { dropping, dropHandlers } = useRailDrop(order);
+  const [focusedId, setFocusedId] = useState<PageId | null>(null);
+  const [dragging, setDragging] = useState(false);
+
+  const entryId = [focusedId, activePageId].find((id) => id !== null && order.includes(id));
+  const tabStopId = entryId ?? order[0];
 
   const sensors = useSensors(
     // A few pixels of slop, so a click to select never reads as a drag.
@@ -47,6 +69,7 @@ export function ThumbnailRail({ className }: { className?: string }) {
 
   /** A drag of a selected card carries the whole selection; an unselected one carries itself. */
   const onDragEnd = ({ active, over }: DragEndEvent) => {
+    setDragging(false);
     if (over === null) return;
     const activeId = String(active.id);
     const selected = editorStore.getState().selectedPageIds;
@@ -64,12 +87,24 @@ export function ThumbnailRail({ className }: { className?: string }) {
     >
       <div className="relative flex min-h-0 flex-1 flex-col">
         <div className="flex-1 overflow-y-auto overscroll-contain px-3 py-4">
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={onDragEnd}>
+          <DndContext
+            sensors={sensors}
+            collisionDetection={closestCenter}
+            onDragStart={() => setDragging(true)}
+            onDragCancel={() => setDragging(false)}
+            onDragEnd={onDragEnd}
+          >
             <SortableContext items={order} strategy={rectSortingStrategy}>
               <ul
                 role="listbox"
                 aria-multiselectable
                 aria-label="Pages"
+                onFocus={(e) => setFocusedId(e.target.getAttribute("data-page-card"))}
+                onKeyDown={(e) => {
+                  // While dnd-kit is dragging, the arrows belong to it.
+                  if (dragging || !ARROWS.has(e.key)) return;
+                  if (focusNeighbour(e.currentTarget, e.key)) e.preventDefault();
+                }}
                 className="grid grid-cols-[repeat(auto-fill,minmax(112px,1fr))] justify-items-center gap-x-3 gap-y-3"
               >
                 {pages.map((page, index) => (
@@ -80,6 +115,7 @@ export function ThumbnailRail({ className }: { className?: string }) {
                     source={page.sourceId === null ? undefined : sources?.[page.sourceId]}
                     selected={selectedPageIds.has(page.id)}
                     active={activePageId === page.id}
+                    tabStop={tabStopId === page.id}
                     selectionCount={selectedPageIds.size}
                     onSelect={select}
                   />

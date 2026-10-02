@@ -51,6 +51,8 @@ interface ThumbnailCardProps {
   source: SourceDoc | undefined;
   selected: boolean;
   active: boolean;
+  /** The rail keeps a single tab stop and moves it with the arrow keys. */
+  tabStop: boolean;
   selectionCount: number;
   onSelect: (id: PageId, mode: SelectMode) => void;
 }
@@ -61,6 +63,7 @@ export function ThumbnailCard({
   source,
   selected,
   active,
+  tabStop,
   selectionCount,
   onSelect,
 }: ThumbnailCardProps) {
@@ -95,7 +98,7 @@ export function ThumbnailCard({
       {...attributes}
       {...listeners}
       role="option"
-      tabIndex={0}
+      tabIndex={tabStop ? 0 : -1}
       aria-label={`Page ${index + 1}`}
       aria-selected={selected}
       data-testid="thumbnail"

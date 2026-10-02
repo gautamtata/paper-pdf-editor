@@ -78,6 +78,21 @@ describe("ThumbnailRail", () => {
     expect(selected()).toEqual([ids[0]]);
   });
 
+  it("keeps one tab stop and walks the grid with the arrow keys", () => {
+    render(<ThumbnailRail />);
+    const cards = screen.getAllByTestId("thumbnail");
+
+    expect(cards.filter((card) => card.getAttribute("tabindex") === "0")).toHaveLength(1);
+    expect(cards[0].getAttribute("tabindex")).toBe("0");
+
+    cards[0].focus();
+    fireEvent.keyDown(cards[0], { key: "ArrowRight" });
+    expect(document.activeElement).toBe(cards[1]);
+
+    fireEvent.keyDown(cards[1], { key: "ArrowLeft" });
+    expect(document.activeElement).toBe(cards[0]);
+  });
+
   it("marks the selected cards for assistive technology", () => {
     render(<ThumbnailRail />);
     const cards = screen.getAllByTestId("thumbnail");
