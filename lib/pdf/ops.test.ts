@@ -9,6 +9,7 @@ import {
   rotatePages,
   usedSourceIds,
 } from "@/lib/pdf/ops";
+import { createHighlight, type Annotation } from "@/lib/annotations/types";
 import { Rotation, type SourceDoc, type VirtualPage } from "@/lib/pdf/types";
 
 const mk = (n: number): VirtualPage[] =>
@@ -22,6 +23,11 @@ const mk = (n: number): VirtualPage[] =>
   }));
 
 const ids = (p: VirtualPage[]) => p.map((x) => x.id);
+
+const annot = (id: string): Annotation => ({
+  ...createHighlight({ x: 0, y: 0, w: 10, h: 10 }),
+  id,
+});
 
 const srcWith = (pageCount: number, id = "s2"): SourceDoc => ({
   id,
@@ -82,7 +88,7 @@ describe("rotatePages", () => {
 describe("duplicatePages", () => {
   it("inserts a fresh copy directly after its original", () => {
     const input = mk(3);
-    input[1] = { ...input[1], annotations: [{ id: "a" }] };
+    input[1] = { ...input[1], annotations: [annot("a")] };
     const out = duplicatePages(input, ["p1"]);
     expect(out).toHaveLength(4);
     expect(ids(out).slice(0, 2)).toEqual(["p0", "p1"]);
@@ -153,7 +159,7 @@ describe("purity", () => {
 
   it("does not share nested size or annotation objects with the input", () => {
     const input = mk(1);
-    input[0] = { ...input[0], annotations: [{ id: "a" }] };
+    input[0] = { ...input[0], annotations: [annot("a")] };
     const copy = duplicatePages(input, ["p0"])[1];
     copy.size.w = 999;
     expect(input[0].size.w).toBe(100);
