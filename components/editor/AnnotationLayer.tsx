@@ -1,6 +1,14 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type PointerEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type PointerEvent,
+  type RefObject,
+} from "react";
 import { ImageShape } from "@/components/editor/annotations/ImageShape";
 import { InkShape } from "@/components/editor/annotations/InkShape";
 import { PropertiesPopover } from "@/components/editor/annotations/PropertiesPopover";
@@ -35,6 +43,18 @@ const CURSORS: Partial<Record<Tool, string>> = {
 };
 
 const DRAW_TOOLS = new Set<Tool>([Tool.Pen, Tool.Highlight, Tool.Rect, Tool.Text]);
+/** Two presses on one text box this far apart open its editor; `dblclick` never arrives, because
+    the layer takes the default on pointer down and captures the pointer for the drag. */
+const DOUBLE_PRESS_MS = 400;
+
+type Press = { id: string; at: number } | null;
+
+const doublePressed = (last: RefObject<Press>, id: string): boolean => {
+  const previous = last.current;
+  const at = Date.now();
+  last.current = { id, at };
+  return previous !== null && previous.id === id && at - previous.at < DOUBLE_PRESS_MS;
+};
 
 interface AnnotationLayerProps {
   page: VirtualPage;
@@ -60,6 +80,7 @@ export function AnnotationLayer({
   const tool = useEditor((s) => s.tool);
   const selection = useEditor((s) => s.selectedAnnotation);
   const [editingId, setEditingId] = useState<string | null>(null);
+  const lastPress = useRef<Press>(null);
   const [svg, setSvg] = useState<SVGSVGElement | null>(null);
 
   const inverse = useMemo(() => invertMatrix(transform), [transform]);
@@ -129,10 +150,21 @@ export function AnnotationLayer({
             a={a}
             editing={editingId === a.id}
             interactive={interactive}
-            onPointerDown={onPointerDown}
-            onEdit={() => setEditingId(a.id)}
+            onPointerDown={(e) => {
+              if (interactive && doublePressed(lastPress, a.id)) {
+                e.stopPropagation();
+                e.preventDefault();
+                setEditingId(a.id);
+                return;
+              }
+              onPointerDown(e);
+            }}
             onCommit={(content, contentHeight) => commitText(a, content, contentHeight)}
-            onCancel={() => setEditingId(null)}
+            onCancel={() => {
+              setEditingId(null);
+              // Escaping out of a box that never had content leaves nothing behind.
+              if (a.content === "") workspaceStore.getState().removeAnnotation(page.id, a.id);
+            }}
           />
         );
       case AnnotationKind.Ink:
@@ -165,6 +197,13 @@ export function AnnotationLayer({
         style={{
           pointerEvents: tool === Tool.Signature ? "none" : "auto",
           touchAction: drawing ? "none" : undefined,
+        }}
+        onPointerDownCapture={(e) => {
+          // Capturing on the layer keeps a drag alive once the pointer leaves the page box, but
+          // an open text box needs its own clicks for the caret. jsdom has no pointer capture.
+          if (editingId === null && typeof e.currentTarget.setPointerCapture === "function") {
+            e.currentTarget.setPointerCapture(e.pointerId);
+          }
         }}
         onPointerDown={(e) => {
           if (e.pointerType === "mouse" && e.button !== 0) return;

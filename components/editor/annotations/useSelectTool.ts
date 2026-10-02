@@ -64,6 +64,8 @@ export function useSelectTool({ pageId, pageSize, toPdf }: Options): SelectTool 
   const begin = useCallback(
     (a: Annotation, handle: Handle | null, e: ReactPointerEvent<SVGElement>) => {
       e.stopPropagation();
+      // The shape owns the gesture: no focus reset, no native drag, no text selection under it.
+      e.preventDefault();
       editorStore.getState().setSelectedAnnotation({ pageId, id: a.id });
       drag.current = {
         base: a,

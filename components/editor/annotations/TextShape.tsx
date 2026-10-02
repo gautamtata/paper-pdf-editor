@@ -8,7 +8,6 @@ interface TextShapeProps {
   editing: boolean;
   interactive: boolean;
   onPointerDown(e: PointerEvent<SVGElement>): void;
-  onEdit(): void;
   /** `height` is the content height in PDF points; `content` is already plain text. */
   onCommit(content: string, height: number): void;
   onCancel(): void;
@@ -32,7 +31,6 @@ export function TextShape({
   editing,
   interactive,
   onPointerDown,
-  onEdit,
   onCommit,
   onCancel,
 }: TextShapeProps) {
@@ -110,7 +108,6 @@ export function TextShape({
             cursor: interactive ? "move" : undefined,
           }}
           onPointerDown={onPointerDown}
-          onDoubleClick={onEdit}
         />
       )}
     </g>
