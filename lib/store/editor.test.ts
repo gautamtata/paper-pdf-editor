@@ -104,6 +104,13 @@ describe("selecting pages drops the annotation focus", () => {
     expect(editorStore.getState().selectedAnnotation).toBeNull();
   });
 
+  it("keeps the annotation when asked, as a click on the page itself does", () => {
+    editorStore.getState().setSelectedAnnotation({ pageId: "p2", id: "a1" });
+    editorStore.getState().selectPage("p2", "replace", order, { keepAnnotation: true });
+    expect(selected()).toEqual(["p2"]);
+    expect(editorStore.getState().selectedAnnotation).toEqual({ pageId: "p2", id: "a1" });
+  });
+
   it("finishes an open text box through its own layer", () => {
     const finish = vi.fn();
     const unregister = registerOpenEditor("a1", finish);

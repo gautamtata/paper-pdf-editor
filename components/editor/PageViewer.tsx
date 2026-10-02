@@ -81,7 +81,8 @@ export function PageViewer({ onDisplayScale, onSaveSignature }: PageViewerProps)
   const extent = useMemo(() => extentOf(pages, sources), [pages, sources]);
   const order = usePageOrder(pages);
   const onSelect = useCallback(
-    (id: PageId) => editorStore.getState().selectPage(id, "replace", pageOrder()),
+    (id: PageId) =>
+      editorStore.getState().selectPage(id, "replace", pageOrder(), { keepAnnotation: true }),
     [],
   );
 

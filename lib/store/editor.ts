@@ -14,6 +14,9 @@ export enum Tool {
 }
 
 export type SelectMode = "replace" | "toggle" | "range";
+export interface SelectOptions {
+  keepAnnotation?: boolean;
+}
 export type ZoomMode = "fit-width" | "fit-page" | "custom";
 
 export interface AnnotationRef {
@@ -30,7 +33,11 @@ export interface EditorState {
   selectedPageIds: Set<PageId>;
   /** The page a `range` selection grows from: the last page `replace`d or toggled. */
   anchorId: PageId | null;
-  selectPage(id: PageId, mode: SelectMode, order: PageId[]): void;
+  /**
+   * Selecting pages drops the annotation focus, so Delete acts on the pages; a click on a page
+   * passes `keepAnnotation`, since the same gesture may have just selected a shape on it.
+   */
+  selectPage(id: PageId, mode: SelectMode, order: PageId[], opts?: SelectOptions): void;
   selectAll(order: PageId[]): void;
   clearSelection(): void;
 
@@ -69,7 +76,6 @@ const rangeBetween = (order: PageId[], from: number, to: number): Set<PageId> =>
 };
 
 export const editorStore = createStore<EditorState>()((set, get) => {
-  /** Selecting pages takes the focus off any annotation, so Delete acts on the pages. */
   const dropAnnotationFocus = (): void => {
     if (get().editingAnnotation !== null) finishOpenEditor();
     set({ selectedAnnotation: null, editingAnnotation: null });
@@ -81,8 +87,8 @@ export const editorStore = createStore<EditorState>()((set, get) => {
 
     selectedPageIds: new Set<PageId>(),
     anchorId: null,
-    selectPage: (id, mode, order) => {
-      dropAnnotationFocus();
+    selectPage: (id, mode, order, opts) => {
+      if (opts?.keepAnnotation !== true) dropAnnotationFocus();
       if (mode === "toggle") {
         const selectedPageIds = new Set(get().selectedPageIds);
         if (selectedPageIds.has(id)) selectedPageIds.delete(id);
