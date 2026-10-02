@@ -155,12 +155,21 @@ const union = (boxes: Rect[]): Rect => {
   return { x: minX, y: minY, w: maxX - minX, h: maxY - minY };
 };
 
-/** Ink: the union of the padded stroke bounds. Every other kind: a copy of its rect. */
+/** The bbox of the ink points themselves, unpadded; `null` when the annotation has no points. */
+const rawInkBounds = (a: InkAnnotation): Rect | null => {
+  const boxes = a.strokes
+    .filter((stroke) => stroke.length > 0)
+    .map((stroke) => strokeBounds(stroke, 0));
+  return boxes.length === 0 ? null : union(boxes);
+};
+
+/** Ink: the point bbox padded by `size / 2`. Every other kind: a copy of its rect. */
 export function annotationBounds(a: Annotation): Rect {
   if (a.kind !== AnnotationKind.Ink) return copyRect(a.rect);
-  return union(
-    a.strokes.filter((stroke) => stroke.length > 0).map((stroke) => strokeBounds(stroke, a.size)),
-  );
+  const raw = rawInkBounds(a);
+  if (raw === null) return { ...ZERO_RECT };
+  const pad = a.size / 2;
+  return { x: raw.x - pad, y: raw.y - pad, w: raw.w + a.size, h: raw.h + a.size };
 }
 
 const moved = (a: Annotation, dx: number, dy: number): Annotation =>
@@ -179,15 +188,19 @@ export const translateAnnotation = <A extends Annotation>(a: A, dx: number, dy: 
 const scaled = (a: Annotation, rect: Rect): Annotation => {
   switch (a.kind) {
     case AnnotationKind.Ink: {
-      const from = annotationBounds(a);
-      const sx = from.w === 0 ? 1 : rect.w / from.w;
-      const sy = from.h === 0 ? 1 : rect.h / from.h;
+      const raw = rawInkBounds(a);
+      if (raw === null) return { ...a, strokes: copyStrokes(a.strokes) };
+      // The points span the rect inset by the stroke padding, so that the padded bounds of the
+      // result are `rect` itself. A rect thinner than the stroke collapses rather than inverting.
+      const pad = a.size / 2;
+      const sx = raw.w === 0 ? 1 : Math.max(rect.w - a.size, 0) / raw.w;
+      const sy = raw.h === 0 ? 1 : Math.max(rect.h - a.size, 0) / raw.h;
       return {
         ...a,
         strokes: a.strokes.map((stroke) =>
           stroke.map((p) => ({
-            x: rect.x + (p.x - from.x) * sx,
-            y: rect.y + (p.y - from.y) * sy,
+            x: rect.x + pad + (p.x - raw.x) * sx,
+            y: rect.y + pad + (p.y - raw.y) * sy,
             p: p.p,
           })),
         ),
@@ -200,7 +213,10 @@ const scaled = (a: Annotation, rect: Rect): Annotation => {
   }
 };
 
-/** Ink points scale onto `rect`; images keep `aspect` by deriving `h` from `w`. */
+/**
+ * `annotationBounds` of the result is `rect`, and resizing to the same rect again is a no-op.
+ * Ink points scale onto `rect`; images keep `aspect` by deriving `h` from `w`.
+ */
 export const resizeAnnotation = <A extends Annotation>(a: A, rect: Rect): A =>
   scaled(a, rect) as A;
 

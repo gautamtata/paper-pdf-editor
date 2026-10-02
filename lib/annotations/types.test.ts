@@ -13,6 +13,7 @@ import {
   rgbToCss,
   translateAnnotation,
   type InkPoint,
+  type Rect,
 } from "@/lib/annotations/types";
 
 const RED = { r: 1, g: 0, b: 0 };
@@ -21,6 +22,20 @@ const STROKE: InkPoint[] = [
   { x: 0, y: 0, p: 0.5 },
   { x: 10, y: 10, p: 0.5 },
 ];
+
+/** A stroke with extent on both axes, so a resize can exercise both scales. */
+const CORNER: InkPoint[] = [
+  { x: 0, y: 0, p: 0.5 },
+  { x: 10, y: 0, p: 0.5 },
+  { x: 10, y: 5, p: 0.5 },
+];
+
+const expectRectCloseTo = (got: Rect, want: Rect): void => {
+  expect(got.x).toBeCloseTo(want.x, 10);
+  expect(got.y).toBeCloseTo(want.y, 10);
+  expect(got.w).toBeCloseTo(want.w, 10);
+  expect(got.h).toBeCloseTo(want.h, 10);
+};
 
 describe("factories", () => {
   it("applies text defaults and a fresh id", () => {
@@ -144,16 +159,41 @@ describe("resizeAnnotation", () => {
     expect(resized.rect.h).toBe(resized.rect.w / resized.aspect);
   });
 
-  it("scales ink points so the old bounds map onto the new rect", () => {
-    const a = createInk([[{ x: 0, y: 0, p: 0.5 }, { x: 10, y: 0, p: 0.5 }]], RED, 4);
-    expect(annotationBounds(a)).toEqual({ x: -2, y: -2, w: 14, h: 4 });
-    const resized = resizeAnnotation(a, { x: 0, y: 0, w: 28, h: 8 });
-    expect(resized.strokes[0]).toEqual([
-      { x: 4, y: 4, p: 0.5 },
-      { x: 24, y: 4, p: 0.5 },
-    ]);
+  it("scales ink so its bounds become the requested rect", () => {
+    const a = createInk([CORNER], RED, 4);
+    expect(annotationBounds(a)).toEqual({ x: -2, y: -2, w: 14, h: 9 });
+    const rect = { x: 0, y: 0, w: 28, h: 18 };
+    const resized = resizeAnnotation(a, rect);
+    expectRectCloseTo(annotationBounds(resized), rect);
     expect(resized.size).toBe(4);
     expect(a.strokes[0][1].x).toBe(10);
+  });
+
+  it("scales ink about the rect origin, inset by the stroke padding", () => {
+    const resized = resizeAnnotation(createInk([CORNER], RED, 4), { x: 3, y: 7, w: 24, h: 14 });
+    expect(resized.strokes[0]).toEqual([
+      { x: 5, y: 9, p: 0.5 },
+      { x: 25, y: 9, p: 0.5 },
+      { x: 25, y: 19, p: 0.5 },
+    ]);
+  });
+
+  it("is idempotent: resizing ink to the same rect twice does not drift", () => {
+    const rect = { x: 3, y: 7, w: 24, h: 14 };
+    const once = resizeAnnotation(createInk([CORNER], RED, 4), rect);
+    const twice = resizeAnnotation(once, rect);
+    expect(twice.strokes).toEqual(once.strokes);
+    expectRectCloseTo(annotationBounds(twice), rect);
+  });
+
+  it("collapses rather than inverting ink when the rect is thinner than the stroke", () => {
+    const resized = resizeAnnotation(createInk([CORNER], RED, 10), { x: 0, y: 0, w: 4, h: 4 });
+    expect(resized.strokes[0]).toEqual([
+      { x: 5, y: 5, p: 0.5 },
+      { x: 5, y: 5, p: 0.5 },
+      { x: 5, y: 5, p: 0.5 },
+    ]);
+    expect(annotationBounds(resized)).toEqual({ x: 0, y: 0, w: 10, h: 10 });
   });
 
   it("leaves degenerate ink bounds unscaled", () => {
