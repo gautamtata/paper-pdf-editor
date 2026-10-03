@@ -2,7 +2,7 @@
 
 Paper is a private, local-first PDF editor that runs entirely in your browser. Open one or more PDFs, rearrange and clean up their pages, annotate and sign them, and export a single flattened file. Nothing is ever uploaded, and no account is needed.
 
-Production: https://paper-pdf-editor.vercel.app
+Production: https://pdf.gautamtata.com (also https://paper-pdf-editor.vercel.app) · Source: https://github.com/gautamtata/paper-pdf-editor
 
 ## Privacy model
 
